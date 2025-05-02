@@ -33,56 +33,23 @@ const DIY_FACTORS = {
 function Calculator() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    // Purchase Details
     purchasePrice: '',
-    downPayment: '20',
-    interestRate: '7.5',
-    loanTerm: '30',
-    
-    // Renovation Details
-    renovationMethod: 'manual', // 'manual' or 'estimate'
     renovationCost: '',
-    holdingPeriod: '6',
-    monthlyExpenses: '',
-    
-    // Renovation Breakdown
-    renovationBreakdown: {
-      roof: '0',
-      siding: '0',
-      kitchen: '0',
-      bathroom: '0',
-      windows: '0',
-      doors: '0',
-      flooring: '0',
-      electrical: '0',
-      plumbing: '0',
-      hvac: '0',
-      painting: '0',
-      landscaping: '0',
-      other: '0',
-    },
-    useBreakdown: false,
-    
-    // Renovation Estimator
-    houseSize: '1500',
-    houseCondition: 'fair',
-    location: 'NJ',
-    diyLevel: 'minimal',
-    
-    // Selling Details
     expectedSellingPrice: '',
-    sellingCosts: '8',
-    expectedMonthlyRent: '',
-    
-    // Timeline Details (for Gantt chart)
-    timelineEstimates: {
-      closingTime: '30', // days until closing
-      permitTime: '15', // days to get permits
-      demoTime: '7', // days for demolition
-      roughInTime: '14', // days for rough-in work
-      finishTime: '21', // days for finishing work
-      listingTime: '45', // days on market
-    }
+    monthlyRent: '',
+    holdingPeriod: '12',
+    downPayment: '20',
+    interestRate: '7',
+    loanTerm: '30',
+    propertyTax: '1.2',
+    insurance: '0.5',
+    maintenance: '0.5',
+    vacancyRate: '5',
+    propertyManagement: '8',
+    closingCosts: '3',
+    sellingCosts: '6',
+    annualAppreciation: '3',
+    annualInflation: '2'
   });
 
   const [openBreakdown, setOpenBreakdown] = useState(false);

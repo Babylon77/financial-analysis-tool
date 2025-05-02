@@ -202,14 +202,7 @@ const MonteCarloChart = ({ simulationData }) => {
   // Effect for initial chart creation and updates when data or scale changes
   useEffect(() => {
     createChart();
-    
-    // Cleanup on unmount
-    return () => {
-      if (chartInstance.current) {
-        chartInstance.current.destroy();
-      }
-    };
-  }, [simulationData, useLogScale]);
+  }, [createChart]);
   
   // Handle toggling between linear and log scale
   const toggleScale = () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatCurrency, formatPercent, formatCompact } from '../utils/formatters';
+import { formatCurrency, formatPercent } from '../utils/formatters';
 
 const ResultRow = ({ label, value, isPercentage = false, highlight = false }) => (
   <div className={`flex justify-between py-2 ${highlight ? 'font-semibold' : ''}`}>
