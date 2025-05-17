@@ -33,10 +33,10 @@ const DIY_FACTORS = {
 function Calculator() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    purchasePrice: '',
+    purchasePrice: '485000',
     renovationCost: '',
-    expectedSellingPrice: '',
-    monthlyRent: '',
+    expectedSellingPrice: '700000',
+    expectedMonthlyRent: '4500',
     holdingPeriod: '12',
     downPayment: '20',
     interestRate: '7',
@@ -49,7 +49,16 @@ function Calculator() {
     closingCosts: '3',
     sellingCosts: '6',
     annualAppreciation: '3',
-    annualInflation: '2'
+    annualInflation: '2',
+    houseSize: '2000',
+    houseCondition: 'poor',
+    location: 'NJ',
+    diyLevel: 'minimal',
+    monthlyExpenses: '4000',
+    nightlyRate: '340',
+    occupancyRate: '65',
+    strManagementFee: '20',
+    additionalStrExpenses: '250'
   });
 
   const [openBreakdown, setOpenBreakdown] = useState(false);

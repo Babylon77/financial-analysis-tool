@@ -249,6 +249,134 @@ function calculateRentalROI(formData) {
   return annualizedROI;
 }
 
+// Function to calculate STR revenue and expenses breakdown
+function calculateStrBreakdown(formData, nightlyRate, occupancyRate) {
+  const purchasePrice = parseFloat(formData.purchasePrice) || 0;
+  
+  // Calculate annual revenue
+  const annualRevenue = nightlyRate * 365 * (occupancyRate / 100);
+  
+  // Calculate expenses
+  const propertyTax = purchasePrice * EXPENSE_RATIOS.propertyTax;
+  const insurance = purchasePrice * EXPENSE_RATIOS.insurance * 1.5; // Higher for STR
+  const maintenance = purchasePrice * EXPENSE_RATIOS.strMaintenance;
+  const utilities = purchasePrice * EXPENSE_RATIOS.strUtilities;
+  const capex = annualRevenue * EXPENSE_RATIOS.strCapex;
+  const managementFee = annualRevenue * (parseFloat(formData.strManagementFee) || 20) / 100;
+  const cleaningFees = (parseFloat(formData.cleaningPerTurn) || 100) * Math.ceil(365 * (occupancyRate / 100) / (parseFloat(formData.averageStay) || 3));
+  const additionalExpenses = (parseFloat(formData.additionalStrExpenses) || 250) * 12;
+  
+  return {
+    revenue: {
+      total: annualRevenue,
+      breakdown: [
+        { name: 'Nightly Revenue', value: annualRevenue },
+        { name: 'Other Income', value: 0 } // Placeholder for additional revenue streams
+      ]
+    },
+    expenses: {
+      propertyTax,
+      insurance,
+      maintenance,
+      utilities,
+      capex,
+      managementFee,
+      cleaningFees,
+      additionalExpenses,
+      total: propertyTax + insurance + maintenance + utilities + capex + managementFee + cleaningFees + additionalExpenses
+    }
+  };
+}
+
+// Function to calculate LTR revenue and expenses breakdown
+function calculateLtrBreakdown(formData, monthlyRent, vacancyRate) {
+  const purchasePrice = parseFloat(formData.purchasePrice) || 0;
+  
+  // Calculate annual revenue
+  const annualRevenue = monthlyRent * 12;
+  const effectiveRevenue = annualRevenue * (1 - vacancyRate / 100);
+  
+  // Calculate expenses
+  const propertyTax = purchasePrice * EXPENSE_RATIOS.propertyTax;
+  const insurance = purchasePrice * EXPENSE_RATIOS.insurance;
+  const maintenance = purchasePrice * EXPENSE_RATIOS.maintenance;
+  const utilities = purchasePrice * EXPENSE_RATIOS.utilities;
+  const capex = monthlyRent * EXPENSE_RATIOS.capex * 12;
+  const managementFee = effectiveRevenue * (parseFloat(formData.propertyManagementFee) || 10) / 100;
+  const additionalExpenses = (parseFloat(formData.otherMonthlyExpenses) || 0) * 12;
+  
+  return {
+    revenue: {
+      total: effectiveRevenue,
+      breakdown: [
+        { name: 'Rental Income', value: annualRevenue },
+        { name: 'Vacancy Loss', value: -annualRevenue * (vacancyRate / 100) } 
+      ]
+    },
+    expenses: {
+      propertyTax,
+      insurance,
+      maintenance,
+      utilities,
+      capex,
+      managementFee,
+      additionalExpenses,
+      total: propertyTax + insurance + maintenance + utilities + capex + managementFee + additionalExpenses
+    }
+  };
+}
+
+// Function to calculate Flip revenue and expenses breakdown
+function calculateFlipBreakdown(formData) {
+  const purchasePrice = parseFloat(formData.purchasePrice) || 0;
+  const renovationCost = parseFloat(formData.renovationCost) || 0;
+  const expectedSellingPrice = parseFloat(formData.expectedSellingPrice) || 0;
+  const sellingCostPercent = parseFloat(formData.sellingCosts) || 8;
+  const holdingPeriod = parseInt(formData.holdingPeriod) || 6;
+  
+  // Calculate revenue
+  const revenue = expectedSellingPrice;
+  
+  // Calculate expenses
+  const sellingCosts = (expectedSellingPrice * sellingCostPercent) / 100;
+  const downPaymentPercent = parseFloat(formData.downPayment) || 20;
+  const downPayment = (purchasePrice * downPaymentPercent) / 100;
+  const loanAmount = purchasePrice - downPayment;
+  const interestRate = parseFloat(formData.interestRate) || 7.5;
+  const monthlyInterestRate = interestRate / 100 / 12;
+  const loanTermYears = parseFloat(formData.loanTerm) || 30;
+  const numberOfPayments = loanTermYears * 12;
+  
+  // Calculate monthly mortgage payment
+  const monthlyPayment = loanAmount * 
+    (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, numberOfPayments)) / 
+    (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1);
+  
+  const monthlyExpenses = parseFloat(formData.monthlyExpenses) || 0;
+  
+  // Calculate holding costs
+  const mortgagePayments = monthlyPayment * holdingPeriod;
+  const otherHoldingCosts = monthlyExpenses * holdingPeriod;
+  const totalHoldingCosts = mortgagePayments + otherHoldingCosts;
+  
+  return {
+    revenue: {
+      total: revenue,
+      breakdown: [
+        { name: 'Sale Price', value: revenue }
+      ]
+    },
+    expenses: {
+      purchasePrice,
+      renovationCost,
+      sellingCosts,
+      mortgagePayments,
+      otherHoldingCosts,
+      total: purchasePrice + renovationCost + sellingCosts + totalHoldingCosts
+    }
+  };
+}
+
 function Results() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -884,10 +1012,10 @@ function Results() {
             </div>
           )}
 
-          {selectedStrategy === 'rental' && (
+          {selectedStrategy === 'ltr' && (
             <div className="mb-8 border border-indigo-100 rounded-lg shadow bg-white overflow-hidden">
               <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-4">
-                <h2 className="text-xl font-semibold text-indigo-800">Rental Strategy Detailed Analysis</h2>
+                <h2 className="text-xl font-semibold text-indigo-800">Long-Term Rental Strategy Detailed Analysis</h2>
                 <p className="text-sm text-indigo-600">Complete breakdown of rental income, expenses, and long-term returns</p>
               </div>
               
@@ -902,7 +1030,7 @@ function Results() {
                         <span className="font-medium">${formatCurrency(purchasePrice)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Down Payment ({formData.downPaymentPercent}%)</span>
+                        <span className="text-gray-600">Down Payment ({formData.downPayment}%)</span>
                         <span className="font-medium">${formatCurrency(downPayment)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
@@ -938,11 +1066,11 @@ function Results() {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="text-gray-600">Monthly Rent</span>
-                        <span className="font-medium">${formatCurrency(formData.monthlyRent)}</span>
+                        <span className="font-medium">${formatCurrency(monthlyRent)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Vacancy Loss ({formData.vacancyRate || 5}%)</span>
-                        <span className="font-medium">-${formatCurrency(formData.monthlyRent * (formData.vacancyRate || 5) / 100)}</span>
+                        <span className="text-gray-600">Vacancy Loss ({vacancyRate}%)</span>
+                        <span className="font-medium">-${formatCurrency(monthlyRent * vacancyRate / 100)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="text-gray-600">Mortgage Payment</span>
@@ -950,29 +1078,164 @@ function Results() {
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="text-gray-600">Property Tax</span>
-                        <span className="font-medium">-${formatCurrency((formData.propertyTaxRate / 100 * purchasePrice) / 12)}</span>
+                        <span className="font-medium">-${formatCurrency(propertyTaxAnnual / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="text-gray-600">Insurance</span>
-                        <span className="font-medium">-${formatCurrency((formData.insuranceCost || purchasePrice * 0.005) / 12)}</span>
+                        <span className="font-medium">-${formatCurrency(insuranceAnnual / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Maintenance ({formData.maintenancePercent || 5}%)</span>
-                        <span className="font-medium">-${formatCurrency(formData.monthlyRent * (formData.maintenancePercent || 5) / 100)}</span>
+                        <span className="text-gray-600">Maintenance</span>
+                        <span className="font-medium">-${formatCurrency(maintenanceAnnual / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Property Management ({formData.propertyManagementPercent || 8}%)</span>
-                        <span className="font-medium">-${formatCurrency(formData.monthlyRent * (formData.propertyManagementPercent || 8) / 100)}</span>
+                        <span className="text-gray-600">Property Management ({formData.propertyManagementFee || 10}%)</span>
+                        <span className="font-medium">-${formatCurrency(propertyManagementFee / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="text-gray-600">Other Expenses</span>
-                        <span className="font-medium">-${formatCurrency(formData.otherMonthlyExpenses || 0)}</span>
+                        <span className="font-medium">-${formatCurrency(parseFloat(formData.otherMonthlyExpenses) || 0)}</span>
                       </div>
                       <div className="flex justify-between items-center font-medium text-green-600">
                         <span>Monthly Cash Flow</span>
                         <span>${formatCurrency(monthlyCashFlow)}</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+                
+                {/* Add detailed annual revenue and expense breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  {/* Annual Revenue Breakdown */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Annual Revenue Breakdown</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Gross Annual Rent</span>
+                        <span className="font-medium">${formatCurrency(monthlyRent * 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Vacancy Loss ({vacancyRate}%)</span>
+                        <span className="font-medium">-${formatCurrency(monthlyRent * 12 * vacancyRate / 100)}</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-t border-gray-100">
+                        <span>Effective Annual Revenue</span>
+                        <span>${formatCurrency(effectiveAnnualRent)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Revenue Distribution</h4>
+                      <div className="flex h-8 rounded-lg overflow-hidden">
+                        <div 
+                          className="bg-green-500" 
+                          style={{ width: `${100 - vacancyRate}%` }} 
+                          title={`Effective Revenue: ${100 - vacancyRate}%`}
+                        ></div>
+                        <div 
+                          className="bg-red-400" 
+                          style={{ width: `${vacancyRate}%` }} 
+                          title={`Vacancy Loss: ${vacancyRate}%`}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-xs mt-1">
+                        <span className="text-green-600">Effective Revenue: ${formatCurrency(effectiveAnnualRent)}</span>
+                        <span className="text-red-500">Vacancy: ${formatCurrency(monthlyRent * 12 * vacancyRate / 100)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Annual Expense Breakdown */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Annual Expense Breakdown</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Property Tax</span>
+                        <span className="font-medium">-${formatCurrency(propertyTaxAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Insurance</span>
+                        <span className="font-medium">-${formatCurrency(insuranceAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Maintenance</span>
+                        <span className="font-medium">-${formatCurrency(maintenanceAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Utilities</span>
+                        <span className="font-medium">-${formatCurrency(utilitiesAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Capital Expenditures</span>
+                        <span className="font-medium">-${formatCurrency(capexAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Property Management</span>
+                        <span className="font-medium">-${formatCurrency(propertyManagementFee)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Other Expenses</span>
+                        <span className="font-medium">-${formatCurrency((parseFloat(formData.otherMonthlyExpenses) || 0) * 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Mortgage Payments</span>
+                        <span className="font-medium">-${formatCurrency(monthlyPayment * 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-red-600">
+                        <span>Total Annual Expenses</span>
+                        <span>-${formatCurrency(totalAnnualExpenses + monthlyPayment * 12)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4">
+                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-t border-gray-200">
+                        <span>Annual Net Cash Flow</span>
+                        <span>${formatCurrency(annualCashFlow)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm text-gray-600 pt-1">
+                        <span>Monthly Average</span>
+                        <span>${formatCurrency(annualCashFlow / 12)}/month</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Add a new expense distribution chart */}
+                <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Expense Distribution</h3>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Property Tax', value: propertyTaxAnnual },
+                            { name: 'Insurance', value: insuranceAnnual },
+                            { name: 'Maintenance', value: maintenanceAnnual },
+                            { name: 'Utilities', value: utilitiesAnnual },
+                            { name: 'CapEx', value: capexAnnual },
+                            { name: 'Management', value: propertyManagementFee },
+                            { name: 'Other', value: (parseFloat(formData.otherMonthlyExpenses) || 0) * 12 },
+                            { name: 'Mortgage', value: monthlyPayment * 12 }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {[
+                            '#0088FE', '#00C49F', '#FFBB28', '#FF8042',
+                            '#a05195', '#d45087', '#f95d6a', '#ff7c43'
+                          ].map((color, index) => (
+                            <Cell key={`cell-${index}`} fill={color} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          formatter={(value) => [`$${formatCurrency(value)}`, '']}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
                 
@@ -987,7 +1250,7 @@ function Results() {
                     </div>
                     <div className="bg-green-50 rounded-lg p-4 text-center">
                       <p className="text-sm text-green-700 mb-1">Cash on Cash Return</p>
-                      <p className="text-2xl font-bold text-green-900">{formatPercent(cashOnCashReturn)}%</p>
+                      <p className="text-2xl font-bold text-green-900">{formatPercent(ltrCashOnCashReturn)}%</p>
                     </div>
                     <div className="bg-indigo-50 rounded-lg p-4 text-center">
                       <p className="text-sm text-indigo-700 mb-1">Cap Rate</p>
@@ -1068,7 +1331,7 @@ function Results() {
                     </p>
                     <div className="bg-gray-50 p-3 rounded">
                       <code>Cash on Cash Return = (Monthly Cash Flow × 12) ÷ Initial Investment × 100%</code><br />
-                      <code>Cash on Cash Return = (${formatCurrency(monthlyCashFlow)} × 12) ÷ ${formatCurrency(downPayment + renovationCost)} × 100% = {formatPercent(cashOnCashReturn)}%</code>
+                      <code>Cash on Cash Return = (${formatCurrency(monthlyCashFlow)} × 12) ÷ ${formatCurrency(downPayment + renovationCost)} × 100% = {formatPercent(ltrCashOnCashReturn)}%</code>
                     </div>
                     
                     <p>
@@ -1104,6 +1367,168 @@ function Results() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {selectedStrategy === 'str' && (
+            <div className="mb-8 border border-indigo-100 rounded-lg shadow bg-white overflow-hidden">
+              <div className="bg-orange-50 border-b border-orange-100 px-6 py-4">
+                <h2 className="text-xl font-semibold text-orange-800">Short-Term Rental Strategy (Airbnb/VRBO)</h2>
+                <p className="text-sm text-orange-600">Complete breakdown of vacation rental income, expenses, and returns</p>
+              </div>
+              
+              <div className="p-6">
+                {/* Add detailed revenue and expense breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    {/* Revenue Breakdown */}                  <div className="bg-white border rounded-lg shadow-sm p-5">                    <h3 className="text-lg font-medium text-gray-900 mb-4">Revenue Breakdown</h3>                    <div className="space-y-3">                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Average Nightly Rate</span>                        <span className="font-medium">${formatCurrency(nightlyRate)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Annual Nights Booked ({occupancyRate}% occupancy)</span>                        <span className="font-medium">{Math.round(365 * occupancyRate / 100)} nights</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Monthly Revenue</span>                        <span className="font-medium">${formatCurrency(annualStrRevenue / 12)}</span>                      </div>                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-b-2 border-gray-100">                        <span>Annual Revenue</span>                        <span>${formatCurrency(annualStrRevenue)}</span>                      </div>                    </div>                                        <div className="mt-6">                      <h4 className="text-sm font-medium text-gray-900 mb-2">Revenue Sources</h4>                      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg h-8 w-full" title="Nightly Revenue: 100%"></div>                      <div className="flex justify-between text-xs text-gray-500 mt-1">                        <span>Nightly Revenue: ${formatCurrency(annualStrRevenue)}</span>                        <span>100%</span>                      </div>                    </div>                  </div>                                    {/* Expense Breakdown */}                  <div className="bg-white border rounded-lg shadow-sm p-5">                    <h3 className="text-lg font-medium text-gray-900 mb-4">Expense Breakdown</h3>                                        {/* Monthly Expenses Table */}                    <h4 className="text-md font-medium text-gray-800 mb-2">Monthly Expenses</h4>                    <div className="space-y-2 mb-4">                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Property Tax</span>                        <span className="font-medium">-${formatCurrency(strPropertyTaxAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Insurance (STR)</span>                        <span className="font-medium">-${formatCurrency(strInsuranceAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Maintenance</span>                        <span className="font-medium">-${formatCurrency(strMaintenanceAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Utilities</span>                        <span className="font-medium">-${formatCurrency(strUtilitiesAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Capital Expenditures</span>                        <span className="font-medium">-${formatCurrency(strCapexAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Management Fee ({formData.strManagementFee || 20}%)</span>                        <span className="font-medium">-${formatCurrency(strManagementFee / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Cleaning & Turnover</span>                        <span className="font-medium">-${formatCurrency((formData.cleaningPerTurn || 100) * Math.ceil(365 * (occupancyRate / 100) / (formData.averageStay || 3)) / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Other Expenses</span>                        <span className="font-medium">-${formatCurrency((formData.additionalStrExpenses || 250))}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Mortgage Payments</span>                        <span className="font-medium">-${formatCurrency(monthlyPayment)}</span>                      </div>                      <div className="flex justify-between items-center font-medium text-red-600 border-t border-gray-200 pt-1">                        <span>Total Monthly Expenses</span>                        <span>-${formatCurrency((totalStrAnnualExpenses + monthlyPayment * 12) / 12)}</span>                      </div>                    </div>                                        {/* Annual Expenses Table */}                    <h4 className="text-md font-medium text-gray-800 mb-2 mt-4">Annual Expenses</h4>                    <div className="space-y-2">                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Property Tax</span>                        <span className="font-medium">-${formatCurrency(strPropertyTaxAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Insurance (STR)</span>                        <span className="font-medium">-${formatCurrency(strInsuranceAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Maintenance</span>                        <span className="font-medium">-${formatCurrency(strMaintenanceAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Utilities</span>                        <span className="font-medium">-${formatCurrency(strUtilitiesAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Capital Expenditures</span>                        <span className="font-medium">-${formatCurrency(strCapexAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Management Fee ({formData.strManagementFee || 20}%)</span>                        <span className="font-medium">-${formatCurrency(strManagementFee)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Cleaning & Turnover</span>                        <span className="font-medium">-${formatCurrency((formData.cleaningPerTurn || 100) * Math.ceil(365 * (occupancyRate / 100) / (formData.averageStay || 3)))}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Other Expenses</span>                        <span className="font-medium">-${formatCurrency((formData.additionalStrExpenses || 250) * 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Mortgage Payments</span>                        <span className="font-medium">-${formatCurrency(monthlyPayment * 12)}</span>                      </div>                      <div className="flex justify-between items-center font-medium text-red-600">                        <span>Total Annual Expenses</span>                        <span>-${formatCurrency(totalStrAnnualExpenses + monthlyPayment * 12)}</span>                      </div>                    </div>                                        <div className="mt-4">                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-t-2 border-gray-200">                        <span>Annual Net Cash Flow</span>                        <span>${formatCurrency(annualStrCashFlow)}</span>                      </div>                      <div className="flex justify-between items-center text-sm text-gray-600 pt-1">                        <span>Monthly Average Cash Flow</span>                        <span>${formatCurrency(annualStrCashFlow / 12)}/month</span>                      </div>                    </div>                  </div>
+                </div>
+                
+                {/* Add a new expense distribution chart */}
+                <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">STR Expense Distribution</h3>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Property Tax', value: strPropertyTaxAnnual },
+                            { name: 'Insurance', value: strInsuranceAnnual },
+                            { name: 'Maintenance', value: strMaintenanceAnnual },
+                            { name: 'Utilities', value: strUtilitiesAnnual },
+                            { name: 'CapEx', value: strCapexAnnual },
+                            { name: 'Management', value: strManagementFee },
+                            { name: 'Cleaning', value: (formData.cleaningPerTurn || 100) * Math.ceil(365 * (occupancyRate / 100) / (formData.averageStay || 3)) },
+                            { name: 'Other', value: (formData.additionalStrExpenses || 250) * 12 },
+                            { name: 'Mortgage', value: monthlyPayment * 12 }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {[
+                            '#0088FE', '#00C49F', '#FFBB28', '#FF8042',
+                            '#a05195', '#d45087', '#f95d6a', '#ff7c43', '#ffa600'
+                          ].map((color, index) => (
+                            <Cell key={`cell-${index}`} fill={color} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          formatter={(value) => [`$${formatCurrency(value)}`, '']}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                
+                {/* Add Flip Revenue and Expense Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  {/* Revenue Breakdown */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Revenue Breakdown</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Sales Price (ARV)</span>
+                        <span className="font-medium">${formatCurrency(expectedSellingPrice)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Purchase Price</span>
+                        <span className="font-medium">${formatCurrency(purchasePrice)}</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-green-600 pt-2">
+                        <span>Gross Equity Created</span>
+                        <span>${formatCurrency(expectedSellingPrice - purchasePrice)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Value Creation</h4>
+                      <div className="bg-gray-100 h-6 w-full rounded-lg overflow-hidden">
+                        <div 
+                          className="bg-blue-500 h-full" 
+                          style={{ width: `${(purchasePrice / expectedSellingPrice) * 100}%` }}
+                          title="Purchase Price"
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>Purchase: ${formatCurrency(purchasePrice)}</span>
+                        <span>Added Value: ${formatCurrency(expectedSellingPrice - purchasePrice)}</span>
+                        <span>ARV: ${formatCurrency(expectedSellingPrice)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Cost Breakdown */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Project Cost Breakdown</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Purchase Price</span>
+                        <span className="font-medium">${formatCurrency(purchasePrice)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Renovation Budget</span>
+                        <span className="font-medium">${formatCurrency(renovationCost)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Mortgage Payments</span>
+                        <span className="font-medium">${formatCurrency(monthlyPayment * holdingPeriod)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Other Holding Costs</span>
+                        <span className="font-medium">${formatCurrency(monthlyExpenses * holdingPeriod)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Selling Costs</span>
+                        <span className="font-medium">${formatCurrency(sellingCosts)}</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-red-600">
+                        <span>Total Project Costs</span>
+                        <span>${formatCurrency(purchasePrice + renovationCost + totalHoldingCosts + sellingCosts)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Expense Distribution Chart */}
+                <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Project Cost Distribution</h3>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Purchase Price', value: purchasePrice },
+                            { name: 'Renovation', value: renovationCost },
+                            { name: 'Mortgage', value: monthlyPayment * holdingPeriod },
+                            { name: 'Other Holding Costs', value: monthlyExpenses * holdingPeriod },
+                            { name: 'Selling Costs', value: sellingCosts }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {[
+                            '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#EE6666'
+                          ].map((color, index) => (
+                            <Cell key={`cell-${index}`} fill={color} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          formatter={(value) => [`$${formatCurrency(value)}`, '']}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                
+                {/* Continue with existing content */}
               </div>
             </div>
           )}
