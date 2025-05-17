@@ -1,19 +1,17 @@
 import React from 'react';
-import { HashRouter, BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Calculator from './pages/Calculator';
 import Results from './pages/Results';
 import Finance from './pages/Finance';
 
-// Use HashRouter for GitHub Pages and BrowserRouter for Netlify or local development
-const isGitHubPages = window.location.hostname.includes('github.io');
-// For Netlify, we'll use BrowserRouter as Netlify handles SPA routing with redirects
-const Router = isGitHubPages ? HashRouter : BrowserRouter;
+// Use HashRouter for all static deployments (GitHub Pages and Netlify)
+// This is more reliable for static hosting environments
 
 function App() {
   return (
-    <Router basename={isGitHubPages ? '' : '/'}>
+    <Router>
       <Layout>
         <Routes>
           <Route path="/" element={<Home />} />
