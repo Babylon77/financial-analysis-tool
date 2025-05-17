@@ -1,10 +1,14 @@
 import React from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter, BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Calculator from './pages/Calculator';
 import Results from './pages/Results';
 import Finance from './pages/Finance';
+
+// Use HashRouter for GitHub Pages and BrowserRouter for Netlify
+const isGitHubPages = window.location.hostname.includes('github.io');
+const Router = isGitHubPages ? HashRouter : BrowserRouter;
 
 function App() {
   return (
