@@ -2,6 +2,8 @@
 
 A comprehensive financial analysis application that helps investors and analysts evaluate different investment strategies, including real estate investments (fix & flip, long-term rental, short-term rental) and general financial calculations.
 
+Live Demo: https://babylon77.github.io/financial-analysis-tool/
+
 ## Features
 
 - **Real Estate Investment Analysis**
