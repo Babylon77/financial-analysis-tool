@@ -19,6 +19,9 @@ import {
   Radar,
   ComposedChart,
   Line,
+  LineChart,
+  Area,
+  AreaChart,
 } from 'recharts';
 
 // Renovation cost constants
@@ -85,11 +88,10 @@ const AVG_NIGHTLY_RATES_BY_LOCATION = {
 
 // MODA Weights for different objectives
 const DEFAULT_OBJECTIVE_WEIGHTS = {
-  roi: 30,
-  cashFlow: 25,
-  appreciation: 15,
+  roi: 35,
+  cashFlow: 30,
   risk: 20,
-  workload: 10
+  workload: 15
 };
 
 // Function to calculate Flip ROI
@@ -519,6 +521,13 @@ function Results() {
   const annualStrCashFlow = annualStrRevenue - totalStrAnnualExpenses - monthlyPayment * 12;
   const strCashOnCashReturn = (annualStrCashFlow / (downPayment + renovationCost)) * 100;
 
+  // Monthly breakdown variables for chart calculations
+  const effectiveMonthlyRent = monthlyRent * (1 - vacancyRate / 100);
+  const monthlyPropertyTax = propertyTaxAnnual / 12;
+  const monthlyInsurance = insuranceAnnual / 12;
+  const monthlyMaintenance = maintenanceAnnual / 12;
+  const monthlyPropertyManagement = propertyManagementFee / 12;
+
   // Deal quality assessment
   const getDealQuality = () => {
     if (roi >= 30 && arvToPurchaseRatio >= 1.3 && renovationToArvRatio <= 20) return 'Excellent';
@@ -577,23 +586,20 @@ function Results() {
       flip: {
         roi: Math.min(10, annualizedROI / 5), // 50% annualized ROI would be a 10
         cashFlow: 0, // No cash flow for flip
-        appreciation: 0, // No appreciation benefit for flip
-        risk: Math.max(0, 10 - (holdingPeriod / 1.2)), // Shorter holding periods are less risky
-        workload: 5, // Medium workload for flip
+        risk: Math.max(0, 10 - (holdingPeriod / 1.2)), // Shorter holding periods are less risky (12 months = 0, 1 month = 9.2)
+        workload: 8, // Low ongoing workload: intensive during project but time-limited, no ongoing management
       },
       ltr: {
-        roi: Math.min(10, ltrCashOnCashReturn / 2), // 20% cash-on-cash would be a 10
+        roi: Math.min(10, ltrTotalROIAnnualized / 2), // 20% total annual ROI would be a 10
         cashFlow: Math.min(10, annualCashFlow / (downPayment + renovationCost) * 20), // 5% monthly cash flow would be a 10
-        appreciation: 7, // Good appreciation benefit
-        risk: 7, // Moderate risk
-        workload: 7, // Lower workload than flip
+        risk: 7, // Lower risk: stable income, established market, predictable expenses
+        workload: 5, // Medium workload: tenant screening, occasional maintenance, annual lease renewal
       },
       str: {
-        roi: Math.min(10, strCashOnCashReturn / 3), // 30% cash-on-cash would be a 10
+        roi: Math.min(10, strTotalROIAnnualized / 3), // 30% total annual ROI would be a 10
         cashFlow: Math.min(10, annualStrCashFlow / (downPayment + renovationCost) * 15), // 6.7% monthly cash flow would be a 10
-        appreciation: 7, // Same appreciation benefit as LTR
-        risk: 4, // Higher risk due to regulatory changes, market volatility
-        workload: 3, // High workload for STR
+        risk: 4, // Higher risk: regulatory changes, market volatility, seasonal demand, higher vacancy
+        workload: 2, // High workload: daily guest management, frequent cleaning, marketing, pricing optimization, 24/7 availability
       }
     };
     
@@ -616,35 +622,6 @@ function Results() {
     };
   };
   
-  const modaResults = calculateModaScores();
-  
-  // Prepare radar chart data for strategy comparison
-  const radarData = [
-    { objective: 'ROI', flip: modaResults.scores.flip.roi, ltr: modaResults.scores.ltr.roi, str: modaResults.scores.str.roi },
-    { objective: 'Cash Flow', flip: modaResults.scores.flip.cashFlow, ltr: modaResults.scores.ltr.cashFlow, str: modaResults.scores.str.cashFlow },
-    { objective: 'Appreciation', flip: modaResults.scores.flip.appreciation, ltr: modaResults.scores.ltr.appreciation, str: modaResults.scores.str.appreciation },
-    { objective: 'Risk', flip: modaResults.scores.flip.risk, ltr: modaResults.scores.ltr.risk, str: modaResults.scores.str.risk },
-    { objective: 'Workload', flip: modaResults.scores.flip.workload, ltr: modaResults.scores.ltr.workload, str: modaResults.scores.str.workload },
-  ];
-  
-  // Prepare bar chart data for weighted scores
-  const weightedScoreData = [
-    { name: 'Fix & Flip', score: modaResults.weightedScores.flip },
-    { name: 'Long-Term Rental', score: modaResults.weightedScores.ltr },
-    { name: 'Short-Term Rental', score: modaResults.weightedScores.str },
-  ];
-  
-  // Find recommended strategy based on highest MODA score
-  const recommendedStrategy = Object.entries(modaResults.weightedScores)
-    .reduce((best, [strategy, score]) => (score > best.score ? { strategy, score } : best), { strategy: 'ltr', score: 0 })
-    .strategy;
-  
-  const strategyLabels = {
-    flip: 'Fix & Flip',
-    ltr: 'Long-Term Rental',
-    str: 'Short-Term Rental'
-  };
-
   // Additional rental calculations for 5-year projections
   const annualAppreciationRate = 0.03; // 3% annual appreciation
   const rentIncreaseRate = 0.02; // 2% annual rent increase
@@ -680,6 +657,177 @@ function Results() {
   // Calculate cash on cash return
   const cashOnCashReturn = (annualCashFlow / (downPayment + renovationCost)) * 100;
   
+  // Calculate STR total profit over 5 years (same methodology as LTR)
+  const strTotalProfit = (annualStrCashFlow * 5) + appreciationProfit + loanPaydown - futureSellingCosts;
+  const strTotalROI = (strTotalProfit / (downPayment + renovationCost)) * 100;
+  
+  // Calculate annualized total returns for normalized comparison
+  const ltrTotalROIAnnualized = rentalROIValue / 5; // Convert 5-year total to annual
+  const strTotalROIAnnualized = strTotalROI / 5; // Convert 5-year total to annual
+  
+  // Now calculate MODA scores after all variables are defined
+  const modaResults = calculateModaScores();
+  
+  // Prepare radar chart data for strategy comparison (rounded to integers)
+  const radarData = [
+    { objective: 'ROI', flip: Math.round(modaResults.scores.flip.roi), ltr: Math.round(modaResults.scores.ltr.roi), str: Math.round(modaResults.scores.str.roi) },
+    { objective: 'Cash Flow', flip: Math.round(modaResults.scores.flip.cashFlow), ltr: Math.round(modaResults.scores.ltr.cashFlow), str: Math.round(modaResults.scores.str.cashFlow) },
+    { objective: 'Risk', flip: Math.round(modaResults.scores.flip.risk), ltr: Math.round(modaResults.scores.ltr.risk), str: Math.round(modaResults.scores.str.risk) },
+    { objective: 'Workload', flip: Math.round(modaResults.scores.flip.workload), ltr: Math.round(modaResults.scores.ltr.workload), str: Math.round(modaResults.scores.str.workload) },
+  ];
+  
+  // Strategy color scheme (consistent across all charts)
+  const STRATEGY_COLORS = {
+    flip: '#8b5cf6',  // Purple
+    ltr: '#10b981',   // Green
+    str: '#f59e0b'    // Orange
+  };
+
+  // Prepare bar chart data for weighted scores
+  const weightedScoreData = [
+    { name: 'Fix & Flip', score: modaResults.weightedScores.flip, color: STRATEGY_COLORS.flip },
+    { name: 'Long-Term Rental', score: modaResults.weightedScores.ltr, color: STRATEGY_COLORS.ltr },
+    { name: 'Short-Term Rental', score: modaResults.weightedScores.str, color: STRATEGY_COLORS.str },
+  ];
+
+  // Prepare cash flow projection data (5-year timeline)
+  const cashFlowProjectionData = [];
+  const annualRentIncrease = 0.025; // 2.5% annual rent increase
+  const annualPropertyTaxIncrease = 0.02; // 2% annual property tax increase  
+  const annualInsuranceIncrease = 0.04; // 4% annual insurance increase
+  const annualMaintenanceIncrease = 0.03; // 3% annual maintenance increase
+  
+  // Start with Year 0 at $0 cash flow
+  cashFlowProjectionData.push({
+    year: 'Year 0',
+    ltr: 0,
+    str: 0
+  });
+  
+  for (let year = 1; year <= 5; year++) {
+    // LTR Cash Flow Calculation - Start with current year 1 values, then project
+    const baseYear = year === 1;
+    
+    // Calculate adjusted annual values for LTR
+    const adjustedAnnualRent = effectiveAnnualRent * Math.pow(1 + annualRentIncrease, year - 1);
+    const adjustedPropertyTaxAnnual = propertyTaxAnnual * Math.pow(1 + annualPropertyTaxIncrease, year - 1);
+    const adjustedInsuranceAnnual = insuranceAnnual * Math.pow(1 + annualInsuranceIncrease, year - 1);
+    const adjustedMaintenanceAnnual = maintenanceAnnual * Math.pow(1 + annualMaintenanceIncrease, year - 1);
+    const adjustedPropertyManagementFee = (adjustedAnnualRent * (parseFloat(formData.propertyManagementFee) || 10) / 100);
+    
+    const ltrTotalExpenses = adjustedPropertyTaxAnnual + adjustedInsuranceAnnual + adjustedMaintenanceAnnual + 
+                           utilitiesAnnual + capexAnnual + adjustedPropertyManagementFee + (monthlyPayment * 12);
+    const ltrYearCashFlow = adjustedAnnualRent - ltrTotalExpenses;
+    
+    // STR Cash Flow Calculation - Apply increases to revenue and expenses
+    const adjustedStrRevenue = annualStrRevenue * Math.pow(1 + annualRentIncrease, year - 1);
+    const adjustedStrPropertyTax = strPropertyTaxAnnual * Math.pow(1 + annualPropertyTaxIncrease, year - 1);
+    const adjustedStrInsurance = strInsuranceAnnual * Math.pow(1 + annualInsuranceIncrease, year - 1);
+    const adjustedStrMaintenance = strMaintenanceAnnual * Math.pow(1 + annualMaintenanceIncrease, year - 1);
+    const adjustedStrManagementFee = adjustedStrRevenue * (parseFloat(formData.strManagementFee) || 20) / 100;
+    
+    const strTotalExpenses = adjustedStrPropertyTax + adjustedStrInsurance + adjustedStrMaintenance + 
+                           strUtilitiesAnnual + strCapexAnnual + adjustedStrManagementFee + 
+                           additionalStrExpenses + (monthlyPayment * 12);
+    const strYearCashFlow = adjustedStrRevenue - strTotalExpenses;
+    
+    cashFlowProjectionData.push({
+      year: `Year ${year}`,
+      ltr: Math.round(ltrYearCashFlow),
+      str: Math.round(strYearCashFlow)
+    });
+  }
+
+  // Prepare ROI progression data (cumulative over 5 years)
+  const roiProgressionData = [];
+  let cumulativeLtrCashFlow = 0;
+  let cumulativeStrCashFlow = 0;
+  const initialInvestment = downPayment + renovationCost;
+  
+  for (let year = 1; year <= 5; year++) {
+    cumulativeLtrCashFlow += cashFlowProjectionData[year].ltr; // Now year index matches because we added Year 0
+    cumulativeStrCashFlow += cashFlowProjectionData[year].str;
+    
+    // Calculate cumulative appreciation (not yearly)
+    const cumulativeAppreciation = purchasePrice * (Math.pow(1 + annualAppreciationRate, year) - 1);
+    // Calculate cumulative principal paydown
+    const cumulativePrincipalPaydown = (loanPaydown / 5) * year; // Simplified linear distribution
+    
+    const ltrCumulativeROI = ((cumulativeLtrCashFlow + cumulativeAppreciation + cumulativePrincipalPaydown) / initialInvestment) * 100;
+    const strCumulativeROI = ((cumulativeStrCashFlow + cumulativeAppreciation + cumulativePrincipalPaydown) / initialInvestment) * 100;
+    
+    // Fix & Flip shows total ROI in year 1, then carries forward
+    const flipCumulativeROI = year === 1 ? annualizedROI : roiProgressionData[0]?.flip || annualizedROI;
+    
+    roiProgressionData.push({
+      year: `Year ${year}`,
+      flip: Math.round(flipCumulativeROI * 100) / 100,
+      ltr: Math.round(ltrCumulativeROI * 100) / 100,
+      str: Math.round(strCumulativeROI * 100) / 100
+    });
+  }
+
+  // Prepare renovation timeline data (if condition data is available or renovation cost > 0)
+  const renovationTimelineData = [];
+  if ((formData.propertyCondition && formData.propertyCondition !== '') || renovationCost > 0) {
+    const condition = formData.propertyCondition || 'fair'; // Default to 'fair' if no condition specified
+    const phases = {
+      'teardown': [
+        { phase: 'Planning & Permits', weeks: 4, cost: renovationCost * 0.1 },
+        { phase: 'Demolition', weeks: 2, cost: renovationCost * 0.15 },
+        { phase: 'Foundation/Structure', weeks: 6, cost: renovationCost * 0.25 },
+        { phase: 'Plumbing/Electrical', weeks: 4, cost: renovationCost * 0.20 },
+        { phase: 'Drywall/Insulation', weeks: 3, cost: renovationCost * 0.10 },
+        { phase: 'Flooring/Paint', weeks: 3, cost: renovationCost * 0.15 },
+        { phase: 'Final/Cleanup', weeks: 2, cost: renovationCost * 0.05 }
+      ],
+      'poor': [
+        { phase: 'Planning & Permits', weeks: 2, cost: renovationCost * 0.1 },
+        { phase: 'Major Repairs', weeks: 4, cost: renovationCost * 0.35 },
+        { phase: 'Plumbing/Electrical', weeks: 3, cost: renovationCost * 0.25 },
+        { phase: 'Flooring/Paint', weeks: 2, cost: renovationCost * 0.25 },
+        { phase: 'Final/Cleanup', weeks: 1, cost: renovationCost * 0.05 }
+      ],
+      'fair': [
+        { phase: 'Planning', weeks: 1, cost: renovationCost * 0.1 },
+        { phase: 'Updates/Repairs', weeks: 3, cost: renovationCost * 0.50 },
+        { phase: 'Cosmetic Work', weeks: 2, cost: renovationCost * 0.35 },
+        { phase: 'Final/Cleanup', weeks: 1, cost: renovationCost * 0.05 }
+      ],
+      'good': [
+        { phase: 'Planning', weeks: 1, cost: renovationCost * 0.15 },
+        { phase: 'Light Cosmetic', weeks: 2, cost: renovationCost * 0.70 },
+        { phase: 'Final/Cleanup', weeks: 1, cost: renovationCost * 0.15 }
+      ]
+    };
+    
+    const selectedPhases = phases[condition] || phases['fair'];
+    let cumulativeWeeks = 0;
+    let cumulativeCost = 0;
+    
+    selectedPhases.forEach(phase => {
+      cumulativeWeeks += phase.weeks;
+      cumulativeCost += phase.cost;
+      renovationTimelineData.push({
+        phase: phase.phase,
+        weeks: cumulativeWeeks,
+        cost: Math.round(cumulativeCost),
+        weeklyProgress: Math.round((cumulativeWeeks / selectedPhases.reduce((sum, p) => sum + p.weeks, 0)) * 100)
+      });
+    });
+  }
+  
+  // Find recommended strategy based on highest MODA score
+  const recommendedStrategy = Object.entries(modaResults.weightedScores)
+    .reduce((best, [strategy, score]) => (score > best.score ? { strategy, score } : best), { strategy: 'ltr', score: 0 })
+    .strategy;
+  
+  const strategyLabels = {
+    flip: 'Fix & Flip',
+    ltr: 'Long-Term Rental',
+    str: 'Short-Term Rental'
+  };
+  
   // Additional variables needed in the UI
   const monthlyCashFlow = annualCashFlow / 12;
   const capRate = (effectiveAnnualRent - totalAnnualExpenses) / purchasePrice * 100;
@@ -710,18 +858,18 @@ function Results() {
                 </div>
                 <div className="text-center">
                   <h3 className="text-xl font-semibold mb-1">Highest ROI</h3>
-                  <p className="text-3xl font-bold">{formatPercent(Math.max(annualizedROI, ltrCashOnCashReturn, strCashOnCashReturn))}%</p>
-                  <p className="text-sm opacity-80">Annual Return</p>
+                  <p className="text-3xl font-bold">{formatPercent(Math.max(annualizedROI, ltrTotalROIAnnualized, strTotalROIAnnualized))}%</p>
+                  <p className="text-sm opacity-80">Total Annual Return</p>
                 </div>
                 <div className="text-center">
-                  <h3 className="text-xl font-semibold mb-1">Profit Potential</h3>
+                  <h3 className="text-xl font-semibold mb-1">5-Year Profit</h3>
                   <p className="text-3xl font-bold">${formatCurrency(Math.max(netProfit, annualCashFlow * 5, annualStrCashFlow * 5))}</p>
-                  <p className="text-sm opacity-80">5-Year Outlook</p>
+                  <p className="text-sm opacity-80">Maximum Strategy</p>
                 </div>
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Purchase & Renovation Summary */}
               <div className="bg-white rounded-lg shadow p-5">
                 <div className="flex justify-between items-center mb-4">
@@ -783,19 +931,40 @@ function Results() {
                 <div className="space-y-3">
                   <div className="flex items-center">
                     <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, roi)}%` }}></div>
+                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ 
+                        width: `${Math.min(100, 
+                          roi >= 30 ? 100 : // Excellent = 100%
+                          roi >= 20 ? 75 :  // Good = 75%
+                          roi >= 10 ? 50 :  // Fair = 50%
+                          (roi / 10) * 25   // Poor = proportional up to 25%
+                        )}%` 
+                      }}></div>
                     </div>
                     <span className="text-sm font-medium text-gray-500 w-20">ROI {formatPercent(roi)}%</span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                      <div className="bg-green-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, (arvToPurchaseRatio - 1) * 100)}%` }}></div>
+                      <div className="bg-green-600 h-2.5 rounded-full" style={{ 
+                        width: `${Math.min(100,
+                          arvToPurchaseRatio >= 1.3 ? 100 : // Excellent = 100%
+                          arvToPurchaseRatio >= 1.2 ? 75 :  // Good = 75%
+                          arvToPurchaseRatio >= 1.1 ? 50 :  // Fair = 50%
+                          ((arvToPurchaseRatio - 1) / 0.1) * 25 // Poor = proportional up to 25%
+                        )}%` 
+                      }}></div>
                     </div>
                     <span className="text-sm font-medium text-gray-500 w-20">ARV {formatPercent(arvToPurchaseRatio)}x</span>
                   </div>
                   <div className="flex items-center">
                     <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                      <div className="bg-yellow-600 h-2.5 rounded-full" style={{ width: `${Math.min(100, 100 - renovationToArvRatio)}%` }}></div>
+                      <div className="bg-yellow-600 h-2.5 rounded-full" style={{ 
+                        width: `${Math.min(100,
+                          renovationToArvRatio <= 20 ? 100 : // Excellent = 100%
+                          renovationToArvRatio <= 25 ? 75 :  // Good = 75%
+                          renovationToArvRatio <= 30 ? 50 :  // Fair = 50%
+                          Math.max(0, (40 - renovationToArvRatio) / 10 * 25) // Poor = decreasing to 0%
+                        )}%` 
+                      }}></div>
                     </div>
                     <span className="text-sm font-medium text-gray-500 w-20">Reno {formatPercent(renovationToArvRatio)}%</span>
                   </div>
@@ -807,6 +976,220 @@ function Results() {
                       'Few metrics meet investment targets.'
                     }</p>
                   </div>
+                </div>
+              </div>
+
+              {/* Industry Standards Key - NEW SEPARATE CARD */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900">Industry Standards</h3>
+                  <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Reference</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Top Left - Excellent */}
+                  <div className="bg-green-50 rounded-lg p-2 border border-green-200">
+                    <div className="flex items-center mb-1">
+                      <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                      <span className="text-sm font-semibold text-green-800">Excellent</span>
+                    </div>
+                    <div className="text-xs text-green-700 space-y-1">
+                      <div>• ROI ≥ 30%</div>
+                      <div>• ARV ≥ 1.3x</div>
+                      <div>• Reno ≤ 20%</div>
+                    </div>
+                  </div>
+                  
+                  {/* Top Right - Good */}
+                  <div className="bg-blue-50 rounded-lg p-2 border border-blue-200">
+                    <div className="flex items-center mb-1">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                      <span className="text-sm font-semibold text-blue-800">Good</span>
+                    </div>
+                    <div className="text-xs text-blue-700 space-y-1">
+                      <div>• ROI ≥ 20%</div>
+                      <div>• ARV ≥ 1.2x</div>
+                      <div>• Reno ≤ 25%</div>
+                    </div>
+                  </div>
+                  
+                  {/* Bottom Left - Fair */}
+                  <div className="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
+                    <div className="flex items-center mb-1">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                      <span className="text-sm font-semibold text-yellow-800">Fair</span>
+                    </div>
+                    <div className="text-xs text-yellow-700 space-y-1">
+                      <div>• ROI ≥ 10%</div>
+                      <div>• ARV ≥ 1.1x</div>
+                      <div>• Reno ≤ 30%</div>
+                    </div>
+                  </div>
+                  
+                  {/* Bottom Right - Poor */}
+                  <div className="bg-red-50 rounded-lg p-2 border border-red-200">
+                    <div className="flex items-center mb-1">
+                      <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                      <span className="text-sm font-semibold text-red-800">Poor</span>
+                    </div>
+                    <div className="text-xs text-red-700 space-y-1">
+                      <div>• ROI &lt; 10%</div>
+                      <div>• ARV &lt; 1.1x</div>
+                      <div>• Reno &gt; 30%</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 italic text-center">
+                    Bar length shows performance vs. these benchmarks
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sensitivity Analysis */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Sensitivity Analysis</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Adjust these parameters to see how changes affect your investment outcomes
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Purchase Price Slider */}
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex justify-between">
+                  <label htmlFor="purchase-price" className="block text-sm font-medium text-gray-700">Purchase Price</label>
+                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.purchasePrice || parseFloat(formData.purchasePrice))}</span>
+                </div>
+                <input
+                  type="range"
+                  id="purchase-price"
+                  min={parseFloat(formData.purchasePrice) * 0.8}
+                  max={parseFloat(formData.purchasePrice) * 1.2}
+                  step={1000}
+                  value={sensitivityInputs.purchasePrice || parseFloat(formData.purchasePrice)}
+                  onChange={(e) => handleSensitivityChange('purchasePrice', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>-20%</span>
+                  <span>Original: ${formatCurrency(parseFloat(formData.purchasePrice))}</span>
+                  <span>+20%</span>
+                </div>
+              </div>
+              
+              {/* Renovation Cost Slider */}
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex justify-between">
+                  <label htmlFor="renovation-cost" className="block text-sm font-medium text-gray-700">Renovation Cost</label>
+                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.renovationCost || parseFloat(formData.renovationCost))}</span>
+                </div>
+                <input
+                  type="range"
+                  id="renovation-cost"
+                  min={parseFloat(formData.renovationCost) * 0.7}
+                  max={parseFloat(formData.renovationCost) * 1.5}
+                  step={1000}
+                  value={sensitivityInputs.renovationCost || parseFloat(formData.renovationCost)}
+                  onChange={(e) => handleSensitivityChange('renovationCost', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>-30%</span>
+                  <span>Original: ${formatCurrency(parseFloat(formData.renovationCost))}</span>
+                  <span>+50%</span>
+                </div>
+              </div>
+              
+              {/* ARV Slider */}
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex justify-between">
+                  <label htmlFor="arv" className="block text-sm font-medium text-gray-700">After Repair Value</label>
+                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.arv || parseFloat(formData.expectedSellingPrice))}</span>
+                </div>
+                <input
+                  type="range"
+                  id="arv"
+                  min={parseFloat(formData.expectedSellingPrice) * 0.85}
+                  max={parseFloat(formData.expectedSellingPrice) * 1.15}
+                  step={1000}
+                  value={sensitivityInputs.arv || parseFloat(formData.expectedSellingPrice)}
+                  onChange={(e) => handleSensitivityChange('arv', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>-15%</span>
+                  <span>Original: ${formatCurrency(parseFloat(formData.expectedSellingPrice))}</span>
+                  <span>+15%</span>
+                </div>
+              </div>
+              
+              {/* Monthly Rent Slider */}
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex justify-between">
+                  <label htmlFor="monthly-rent" className="block text-sm font-medium text-gray-700">Monthly Rent</label>
+                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.monthlyRent || parseFloat(formData.expectedMonthlyRent || 0))}</span>
+                </div>
+                <input
+                  type="range"
+                  id="monthly-rent"
+                  min={(parseFloat(formData.expectedMonthlyRent) || 0) * 0.7}
+                  max={(parseFloat(formData.expectedMonthlyRent) || 0) * 1.3}
+                  step={50}
+                  value={sensitivityInputs.monthlyRent || parseFloat(formData.expectedMonthlyRent || 0)}
+                  onChange={(e) => handleSensitivityChange('monthlyRent', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>-30%</span>
+                  <span>Original: ${formatCurrency(parseFloat(formData.expectedMonthlyRent || 0))}</span>
+                  <span>+30%</span>
+                </div>
+              </div>
+              
+              {/* STR Nightly Rate Slider */}
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex justify-between">
+                  <label htmlFor="nightly-rate" className="block text-sm font-medium text-gray-700">STR Nightly Rate</label>
+                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.nightlyRate || parseFloat(formData.nightlyRate) || estimateNightlyRate())}</span>
+                </div>
+                <input
+                  type="range"
+                  id="nightly-rate"
+                  min={(parseFloat(formData.nightlyRate) || estimateNightlyRate()) * 0.6}
+                  max={(parseFloat(formData.nightlyRate) || estimateNightlyRate()) * 1.4}
+                  step={5}
+                  value={sensitivityInputs.nightlyRate || parseFloat(formData.nightlyRate) || estimateNightlyRate()}
+                  onChange={(e) => handleSensitivityChange('nightlyRate', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>-40%</span>
+                  <span>Original: ${formatCurrency(parseFloat(formData.nightlyRate) || estimateNightlyRate())}</span>
+                  <span>+40%</span>
+                </div>
+              </div>
+              
+              {/* STR Occupancy Rate Slider */}
+              <div className="bg-white p-4 rounded-lg shadow">
+                <div className="flex justify-between">
+                  <label htmlFor="occupancy-rate" className="block text-sm font-medium text-gray-700">STR Occupancy (%)</label>
+                  <span className="text-sm text-gray-500">{(sensitivityInputs.occupancyRate || parseFloat(formData.occupancyRate) || 65).toFixed(1)}%</span>
+                </div>
+                <input
+                  type="range"
+                  id="occupancy-rate"
+                  min={40}
+                  max={90}
+                  step={1}
+                  value={sensitivityInputs.occupancyRate || parseFloat(formData.occupancyRate) || 65}
+                  onChange={(e) => handleSensitivityChange('occupancyRate', parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>40%</span>
+                  <span>Original: {parseFloat(formData.occupancyRate) || 65}%</span>
+                  <span>90%</span>
                 </div>
               </div>
             </div>
@@ -1013,13 +1396,14 @@ function Results() {
           )}
 
           {selectedStrategy === 'ltr' && (
-            <div className="mb-8 border border-indigo-100 rounded-lg shadow bg-white overflow-hidden">
-              <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-4">
-                <h2 className="text-xl font-semibold text-indigo-800">Long-Term Rental Strategy Detailed Analysis</h2>
-                <p className="text-sm text-indigo-600">Complete breakdown of rental income, expenses, and long-term returns</p>
+            <div className="mb-8 border border-green-100 rounded-lg shadow bg-white overflow-hidden">
+              <div className="bg-green-50 border-b border-green-100 px-6 py-4">
+                <h2 className="text-xl font-semibold text-green-800">Long-Term Rental Strategy Detailed Analysis</h2>
+                <p className="text-sm text-green-600">Complete breakdown of rental income, expenses, and long-term returns</p>
               </div>
               
               <div className="p-6">
+                {/* Initial Investment - LTR DATA */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   {/* Financial Summary */}
                   <div className="bg-white border rounded-lg shadow-sm p-5">
@@ -1060,17 +1444,13 @@ function Results() {
                     </div>
                   </div>
                   
-                  {/* Monthly Cash Flow */}
+                  {/* Monthly Cash Flow - LTR DATA */}
                   <div className="bg-white border rounded-lg shadow-sm p-5">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Monthly Cash Flow</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Monthly Rent</span>
-                        <span className="font-medium">${formatCurrency(monthlyRent)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Vacancy Loss ({vacancyRate}%)</span>
-                        <span className="font-medium">-${formatCurrency(monthlyRent * vacancyRate / 100)}</span>
+                        <span className="text-gray-600">Monthly Rent (effective)</span>
+                        <span className="font-medium">${formatCurrency(effectiveAnnualRent / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="text-gray-600">Mortgage Payment</span>
@@ -1089,58 +1469,66 @@ function Results() {
                         <span className="font-medium">-${formatCurrency(maintenanceAnnual / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Property Management ({formData.propertyManagementFee || 10}%)</span>
+                        <span className="text-gray-600">Utilities</span>
+                        <span className="font-medium">-${formatCurrency(utilitiesAnnual / 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Management Fee ({formData.propertyManagementFee || 10}%)</span>
                         <span className="font-medium">-${formatCurrency(propertyManagementFee / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Other Expenses</span>
-                        <span className="font-medium">-${formatCurrency(parseFloat(formData.otherMonthlyExpenses) || 0)}</span>
+                        <span className="text-gray-600">Capital Reserves</span>
+                        <span className="font-medium">-${formatCurrency(capexAnnual / 12)}</span>
                       </div>
                       <div className="flex justify-between items-center font-medium text-green-600">
                         <span>Monthly Cash Flow</span>
-                        <span>${formatCurrency(monthlyCashFlow)}</span>
+                        <span>${formatCurrency(annualCashFlow / 12)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
-                
-                {/* Add detailed annual revenue and expense breakdown */}
+
+                {/* Annual Revenue and Expense Breakdown - LTR DATA */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   {/* Annual Revenue Breakdown */}
                   <div className="bg-white border rounded-lg shadow-sm p-5">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Annual Revenue Breakdown</h3>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Gross Annual Rent</span>
-                        <span className="font-medium">${formatCurrency(monthlyRent * 12)}</span>
+                        <span className="text-gray-600">Monthly Rent</span>
+                        <span className="font-medium">${formatCurrency(monthlyRent)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Vacancy Loss ({vacancyRate}%)</span>
-                        <span className="font-medium">-${formatCurrency(monthlyRent * 12 * vacancyRate / 100)}</span>
+                        <span className="text-gray-600">Vacancy Rate</span>
+                        <span className="font-medium">{vacancyRate}%</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Effective Annual Rent</span>
+                        <span className="font-medium">${formatCurrency(effectiveAnnualRent)}</span>
                       </div>
                       <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-t border-gray-100">
-                        <span>Effective Annual Revenue</span>
+                        <span>Total Annual Revenue</span>
                         <span>${formatCurrency(effectiveAnnualRent)}</span>
                       </div>
                     </div>
                     
                     <div className="mt-6">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Revenue Distribution</h4>
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Occupancy Distribution</h4>
                       <div className="flex h-8 rounded-lg overflow-hidden">
                         <div 
                           className="bg-green-500" 
                           style={{ width: `${100 - vacancyRate}%` }} 
-                          title={`Effective Revenue: ${100 - vacancyRate}%`}
+                          title={`Occupied: ${100 - vacancyRate}%`}
                         ></div>
                         <div 
-                          className="bg-red-400" 
+                          className="bg-gray-300" 
                           style={{ width: `${vacancyRate}%` }} 
-                          title={`Vacancy Loss: ${vacancyRate}%`}
+                          title={`Vacant: ${vacancyRate}%`}
                         ></div>
                       </div>
                       <div className="flex justify-between text-xs mt-1">
-                        <span className="text-green-600">Effective Revenue: ${formatCurrency(effectiveAnnualRent)}</span>
-                        <span className="text-red-500">Vacancy: ${formatCurrency(monthlyRent * 12 * vacancyRate / 100)}</span>
+                        <span className="text-green-600">Occupied: {Math.round(365 * (100 - vacancyRate) / 100)} days</span>
+                        <span className="text-gray-500">Vacant: {Math.round(365 * vacancyRate / 100)} days</span>
                       </div>
                     </div>
                   </div>
@@ -1170,12 +1558,8 @@ function Results() {
                         <span className="font-medium">-${formatCurrency(capexAnnual)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Property Management</span>
+                        <span className="text-gray-600">Management Fee ({formData.propertyManagementFee || 10}%)</span>
                         <span className="font-medium">-${formatCurrency(propertyManagementFee)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Other Expenses</span>
-                        <span className="font-medium">-${formatCurrency((parseFloat(formData.otherMonthlyExpenses) || 0) * 12)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                         <span className="text-gray-600">Mortgage Payments</span>
@@ -1200,9 +1584,9 @@ function Results() {
                   </div>
                 </div>
                 
-                {/* Add a new expense distribution chart */}
+                {/* LTR Expense Distribution Chart */}
                 <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Rental Expense Distribution</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">LTR Expense Distribution</h3>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -1214,7 +1598,6 @@ function Results() {
                             { name: 'Utilities', value: utilitiesAnnual },
                             { name: 'CapEx', value: capexAnnual },
                             { name: 'Management', value: propertyManagementFee },
-                            { name: 'Other', value: (parseFloat(formData.otherMonthlyExpenses) || 0) * 12 },
                             { name: 'Mortgage', value: monthlyPayment * 12 }
                           ]}
                           cx="50%"
@@ -1226,7 +1609,7 @@ function Results() {
                         >
                           {[
                             '#0088FE', '#00C49F', '#FFBB28', '#FF8042',
-                            '#a05195', '#d45087', '#f95d6a', '#ff7c43'
+                            '#a05195', '#d45087', '#f95d6a'
                           ].map((color, index) => (
                             <Cell key={`cell-${index}`} fill={color} />
                           ))}
@@ -1239,30 +1622,33 @@ function Results() {
                   </div>
                 </div>
                 
-                {/* Key Metrics */}
+                {/* Key Performance Metrics */}
                 <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Key Performance Metrics</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-blue-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-blue-700 mb-1">Cash Flow</p>
-                      <p className="text-2xl font-bold text-blue-900">${formatCurrency(monthlyCashFlow)}/mo</p>
-                      <p className="text-sm text-blue-700">${formatCurrency(monthlyCashFlow * 12)}/yr</p>
+                    <div className="bg-orange-50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-orange-700 mb-1">Cash Flow</p>
+                      <p className="text-2xl font-bold text-orange-900">${formatCurrency(annualCashFlow / 12)}/mo</p>
+                      <p className="text-sm text-orange-700">${formatCurrency(annualCashFlow)}/yr</p>
                     </div>
                     <div className="bg-green-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-green-700 mb-1">Cash on Cash Return</p>
-                      <p className="text-2xl font-bold text-green-900">{formatPercent(ltrCashOnCashReturn)}%</p>
+                      <p className="text-sm text-green-700 mb-1">Cash-on-Cash Return</p>
+                      <p className="text-2xl font-bold text-green-900">{formatPercent(cashOnCashReturn)}%</p>
+                      <p className="text-sm text-green-700">Annual return on investment</p>
                     </div>
-                    <div className="bg-indigo-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-indigo-700 mb-1">Cap Rate</p>
-                      <p className="text-2xl font-bold text-indigo-900">{formatPercent(capRate)}%</p>
+                    <div className="bg-blue-50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-blue-700 mb-1">Vacancy Rate</p>
+                      <p className="text-2xl font-bold text-blue-900">{vacancyRate}%</p>
+                      <p className="text-sm text-blue-700">{Math.round(365 * vacancyRate / 100)} days/year</p>
                     </div>
                     <div className="bg-purple-50 rounded-lg p-4 text-center">
-                      <p className="text-sm text-purple-700 mb-1">5-Year ROI</p>
-                      <p className="text-2xl font-bold text-purple-900">{formatPercent(rentalROIValue)}%</p>
+                      <p className="text-sm text-purple-700 mb-1">Monthly Rent</p>
+                      <p className="text-2xl font-bold text-purple-900">${formatCurrency(monthlyRent)}</p>
+                      <p className="text-sm text-purple-700">gross monthly</p>
                     </div>
                   </div>
                 </div>
-                
+
                 {/* 5-Year Projection */}
                 <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">5-Year Return Projection</h3>
@@ -1291,80 +1677,18 @@ function Results() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">${formatCurrency(loanPaydown)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Reduction in loan balance over 5 years</td>
                         </tr>
-                        <tr>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">Selling Costs (at year 5)</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">-${formatCurrency(futureSellingCosts)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatCurrency(futureValue)} × {formData.sellingCosts}%</td>
-                        </tr>
                         <tr className="bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Total 5-Year Profit</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">${formatCurrency(rentalProfit)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Total Return</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">${formatCurrency(monthlyCashFlow * 12 * 5 + appreciationProfit + loanPaydown)}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Sum of all components</td>
                         </tr>
                         <tr className="bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Initial Investment</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${formatCurrency(downPayment + renovationCost)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Down payment + renovation costs</td>
-                        </tr>
-                        <tr className="bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">5-Year ROI</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">{formatPercent(rentalROIValue)}%</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">(Total Profit / Initial Investment) × 100%</td>
-                        </tr>
-                        <tr className="bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Annualized ROI</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">{formatPercent(rentalROIValue / 5)}%</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">5-Year ROI ÷ 5</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Total ROI (Annualized)</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">{formatPercent(((monthlyCashFlow * 12 * 5 + appreciationProfit + loanPaydown) / (downPayment + renovationCost)) / 5 * 100)}%</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Annual return on ${formatCurrency(downPayment + renovationCost)} investment</td>
                         </tr>
                       </tbody>
                     </table>
-                  </div>
-                </div>
-                
-                {/* Math Explanation */}
-                <div className="bg-white border rounded-lg shadow-sm p-5">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Understanding the Math</h3>
-                  
-                  <div className="space-y-4 text-sm text-gray-600">
-                    <p>
-                      <strong className="text-gray-700">Cash on Cash Return:</strong> Annual cash flow divided by your initial cash investment.
-                    </p>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <code>Cash on Cash Return = (Monthly Cash Flow × 12) ÷ Initial Investment × 100%</code><br />
-                      <code>Cash on Cash Return = (${formatCurrency(monthlyCashFlow)} × 12) ÷ ${formatCurrency(downPayment + renovationCost)} × 100% = {formatPercent(ltrCashOnCashReturn)}%</code>
-                    </div>
-                    
-                    <p>
-                      <strong className="text-gray-700">Cap Rate:</strong> Net operating income (before mortgage) divided by property purchase price.
-                    </p>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <code>Cap Rate = (Annual Rent - Annual Expenses excluding mortgage) ÷ Purchase Price × 100%</code><br />
-                      <code>Cap Rate = (${formatCurrency(formData.monthlyRent * 12 * (1 - (formData.vacancyRate || 5)/100) - annualExpensesExclMortgage)} ÷ ${formatCurrency(purchasePrice)}) × 100% = {formatPercent(capRate)}%</code>
-                    </div>
-                    
-                    <p>
-                      <strong className="text-gray-700">Future Property Value:</strong> Property value after 5 years of appreciation.
-                    </p>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <code>Future Value = Purchase Price × (1 + Annual Appreciation Rate)^5</code><br />
-                      <code>Future Value = ${formatCurrency(purchasePrice)} × (1 + {formData.appreciationRate || 3}%)^5 = ${formatCurrency(futureValue)}</code>
-                    </div>
-                    
-                    <p>
-                      <strong className="text-gray-700">Total 5-Year Profit:</strong> Sum of cash flow, appreciation, and loan paydown minus selling costs.
-                    </p>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <code>Total Profit = Cash Flow + Appreciation + Loan Paydown - Selling Costs</code><br />
-                      <code>Total Profit = ${formatCurrency(monthlyCashFlow * 12 * 5)} + ${formatCurrency(appreciationProfit)} + ${formatCurrency(loanPaydown)} - ${formatCurrency(futureSellingCosts)} = ${formatCurrency(rentalProfit)}</code>
-                    </div>
-                    
-                    <p>
-                      <strong className="text-gray-700">5-Year ROI:</strong> Total profit divided by initial investment.
-                    </p>
-                    <div className="bg-gray-50 p-3 rounded">
-                      <code>5-Year ROI = (Total Profit ÷ Initial Investment) × 100%</code><br />
-                      <code>5-Year ROI = (${formatCurrency(rentalProfit)} ÷ ${formatCurrency(downPayment + renovationCost)}) × 100% = {formatPercent(rentalROIValue)}%</code>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1379,12 +1703,192 @@ function Results() {
               </div>
               
               <div className="p-6">
-                {/* Add detailed revenue and expense breakdown */}
+                {/* Initial Investment - NEW SECTION TO MATCH LTR */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                                    {/* Revenue Breakdown */}                  <div className="bg-white border rounded-lg shadow-sm p-5">                    <h3 className="text-lg font-medium text-gray-900 mb-4">Revenue Breakdown</h3>                    <div className="space-y-3">                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Average Nightly Rate</span>                        <span className="font-medium">${formatCurrency(nightlyRate)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Annual Nights Booked ({occupancyRate}% occupancy)</span>                        <span className="font-medium">{Math.round(365 * occupancyRate / 100)} nights</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Monthly Revenue</span>                        <span className="font-medium">${formatCurrency(annualStrRevenue / 12)}</span>                      </div>                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-b-2 border-gray-100">                        <span>Annual Revenue</span>                        <span>${formatCurrency(annualStrRevenue)}</span>                      </div>                    </div>                                        <div className="mt-6">                      <h4 className="text-sm font-medium text-gray-900 mb-2">Revenue Sources</h4>                      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg h-8 w-full" title="Nightly Revenue: 100%"></div>                      <div className="flex justify-between text-xs text-gray-500 mt-1">                        <span>Nightly Revenue: ${formatCurrency(annualStrRevenue)}</span>                        <span>100%</span>                      </div>                    </div>                  </div>                                    {/* Expense Breakdown */}                  <div className="bg-white border rounded-lg shadow-sm p-5">                    <h3 className="text-lg font-medium text-gray-900 mb-4">Expense Breakdown</h3>                                        {/* Monthly Expenses Table */}                    <h4 className="text-md font-medium text-gray-800 mb-2">Monthly Expenses</h4>                    <div className="space-y-2 mb-4">                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Property Tax</span>                        <span className="font-medium">-${formatCurrency(strPropertyTaxAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Insurance (STR)</span>                        <span className="font-medium">-${formatCurrency(strInsuranceAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Maintenance</span>                        <span className="font-medium">-${formatCurrency(strMaintenanceAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Utilities</span>                        <span className="font-medium">-${formatCurrency(strUtilitiesAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Capital Expenditures</span>                        <span className="font-medium">-${formatCurrency(strCapexAnnual / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Management Fee ({formData.strManagementFee || 20}%)</span>                        <span className="font-medium">-${formatCurrency(strManagementFee / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Cleaning & Turnover</span>                        <span className="font-medium">-${formatCurrency((formData.cleaningPerTurn || 100) * Math.ceil(365 * (occupancyRate / 100) / (formData.averageStay || 3)) / 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Other Expenses</span>                        <span className="font-medium">-${formatCurrency((formData.additionalStrExpenses || 250))}</span>                      </div>                      <div className="flex justify-between items-center pb-1 border-b border-gray-100">                        <span className="text-gray-600">Mortgage Payments</span>                        <span className="font-medium">-${formatCurrency(monthlyPayment)}</span>                      </div>                      <div className="flex justify-between items-center font-medium text-red-600 border-t border-gray-200 pt-1">                        <span>Total Monthly Expenses</span>                        <span>-${formatCurrency((totalStrAnnualExpenses + monthlyPayment * 12) / 12)}</span>                      </div>                    </div>                                        {/* Annual Expenses Table */}                    <h4 className="text-md font-medium text-gray-800 mb-2 mt-4">Annual Expenses</h4>                    <div className="space-y-2">                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Property Tax</span>                        <span className="font-medium">-${formatCurrency(strPropertyTaxAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Insurance (STR)</span>                        <span className="font-medium">-${formatCurrency(strInsuranceAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Maintenance</span>                        <span className="font-medium">-${formatCurrency(strMaintenanceAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Utilities</span>                        <span className="font-medium">-${formatCurrency(strUtilitiesAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Capital Expenditures</span>                        <span className="font-medium">-${formatCurrency(strCapexAnnual)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Management Fee ({formData.strManagementFee || 20}%)</span>                        <span className="font-medium">-${formatCurrency(strManagementFee)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Cleaning & Turnover</span>                        <span className="font-medium">-${formatCurrency((formData.cleaningPerTurn || 100) * Math.ceil(365 * (occupancyRate / 100) / (formData.averageStay || 3)))}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Other Expenses</span>                        <span className="font-medium">-${formatCurrency((formData.additionalStrExpenses || 250) * 12)}</span>                      </div>                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">                        <span className="text-gray-600">Mortgage Payments</span>                        <span className="font-medium">-${formatCurrency(monthlyPayment * 12)}</span>                      </div>                      <div className="flex justify-between items-center font-medium text-red-600">                        <span>Total Annual Expenses</span>                        <span>-${formatCurrency(totalStrAnnualExpenses + monthlyPayment * 12)}</span>                      </div>                    </div>                                        <div className="mt-4">                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-t-2 border-gray-200">                        <span>Annual Net Cash Flow</span>                        <span>${formatCurrency(annualStrCashFlow)}</span>                      </div>                      <div className="flex justify-between items-center text-sm text-gray-600 pt-1">                        <span>Monthly Average Cash Flow</span>                        <span>${formatCurrency(annualStrCashFlow / 12)}/month</span>                      </div>                    </div>                  </div>
+                  {/* Financial Summary */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Initial Investment</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Purchase Price</span>
+                        <span className="font-medium">${formatCurrency(purchasePrice)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Down Payment ({formData.downPayment}%)</span>
+                        <span className="font-medium">${formatCurrency(downPayment)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Loan Amount</span>
+                        <span className="font-medium">${formatCurrency(loanAmount)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Interest Rate</span>
+                        <span className="font-medium">{formData.interestRate}%</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Loan Term</span>
+                        <span className="font-medium">{formData.loanTerm} years</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Monthly Payment</span>
+                        <span className="font-medium">${formatCurrency(monthlyPayment)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Renovation Cost</span>
+                        <span className="font-medium">${formatCurrency(renovationCost)}</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-gray-900">
+                        <span>Total Initial Investment</span>
+                        <span>${formatCurrency(downPayment + renovationCost)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Monthly Cash Flow - NEW SECTION TO MATCH LTR */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Monthly Cash Flow</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Monthly Revenue (avg)</span>
+                        <span className="font-medium">${formatCurrency(annualStrRevenue / 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Mortgage Payment</span>
+                        <span className="font-medium">-${formatCurrency(monthlyPayment)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Property Tax</span>
+                        <span className="font-medium">-${formatCurrency(strPropertyTaxAnnual / 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Insurance (STR)</span>
+                        <span className="font-medium">-${formatCurrency(strInsuranceAnnual / 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Maintenance</span>
+                        <span className="font-medium">-${formatCurrency(strMaintenanceAnnual / 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Utilities</span>
+                        <span className="font-medium">-${formatCurrency(strUtilitiesAnnual / 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Management Fee ({formData.strManagementFee || 20}%)</span>
+                        <span className="font-medium">-${formatCurrency(strManagementFee / 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Other Expenses</span>
+                        <span className="font-medium">-${formatCurrency(formData.additionalStrExpenses || 250)}</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-green-600">
+                        <span>Monthly Cash Flow</span>
+                        <span>${formatCurrency(annualStrCashFlow / 12)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Annual Revenue and Expense Breakdown - UPDATED TO MATCH LTR STRUCTURE */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  {/* Annual Revenue Breakdown */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Annual Revenue Breakdown</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Average Nightly Rate</span>
+                        <span className="font-medium">${formatCurrency(nightlyRate)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Annual Nights Booked ({occupancyRate}% occupancy)</span>
+                        <span className="font-medium">{Math.round(365 * occupancyRate / 100)} nights</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-t border-gray-100">
+                        <span>Annual Revenue</span>
+                        <span>${formatCurrency(annualStrRevenue)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Occupancy Distribution</h4>
+                      <div className="flex h-8 rounded-lg overflow-hidden">
+                        <div 
+                          className="bg-green-500" 
+                          style={{ width: `${occupancyRate}%` }} 
+                          title={`Occupied: ${occupancyRate}%`}
+                        ></div>
+                        <div 
+                          className="bg-gray-300" 
+                          style={{ width: `${100 - occupancyRate}%` }} 
+                          title={`Vacant: ${100 - occupancyRate}%`}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between text-xs mt-1">
+                        <span className="text-green-600">Occupied: {Math.round(365 * occupancyRate / 100)} nights</span>
+                        <span className="text-gray-500">Vacant: {365 - Math.round(365 * occupancyRate / 100)} nights</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Annual Expense Breakdown */}
+                  <div className="bg-white border rounded-lg shadow-sm p-5">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Annual Expense Breakdown</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Property Tax</span>
+                        <span className="font-medium">-${formatCurrency(strPropertyTaxAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Insurance (STR)</span>
+                        <span className="font-medium">-${formatCurrency(strInsuranceAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Maintenance</span>
+                        <span className="font-medium">-${formatCurrency(strMaintenanceAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Utilities</span>
+                        <span className="font-medium">-${formatCurrency(strUtilitiesAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Capital Expenditures</span>
+                        <span className="font-medium">-${formatCurrency(strCapexAnnual)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Management Fee ({formData.strManagementFee || 20}%)</span>
+                        <span className="font-medium">-${formatCurrency(strManagementFee)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Cleaning & Turnover</span>
+                        <span className="font-medium">-${formatCurrency((formData.cleaningPerTurn || 100) * Math.ceil(365 * (occupancyRate / 100) / (formData.averageStay || 3)))}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Other Expenses</span>
+                        <span className="font-medium">-${formatCurrency((formData.additionalStrExpenses || 250) * 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                        <span className="text-gray-600">Mortgage Payments</span>
+                        <span className="font-medium">-${formatCurrency(monthlyPayment * 12)}</span>
+                      </div>
+                      <div className="flex justify-between items-center font-medium text-red-600">
+                        <span>Total Annual Expenses</span>
+                        <span>-${formatCurrency(totalStrAnnualExpenses + monthlyPayment * 12)}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4">
+                      <div className="flex justify-between items-center font-medium text-green-600 pt-2 border-t border-gray-200">
+                        <span>Annual Net Cash Flow</span>
+                        <span>${formatCurrency(annualStrCashFlow)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm text-gray-600 pt-1">
+                        <span>Monthly Average</span>
+                        <span>${formatCurrency(annualStrCashFlow / 12)}/month</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
-                {/* Add a new expense distribution chart */}
+                {/* STR Expense Distribution Chart */}
                 <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
                   <h3 className="text-lg font-medium text-gray-900 mb-4">STR Expense Distribution</h3>
                   <div className="h-80">
@@ -1424,111 +1928,32 @@ function Results() {
                   </div>
                 </div>
                 
-                {/* Add Flip Revenue and Expense Breakdown */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  {/* Revenue Breakdown */}
-                  <div className="bg-white border rounded-lg shadow-sm p-5">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Revenue Breakdown</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Sales Price (ARV)</span>
-                        <span className="font-medium">${formatCurrency(expectedSellingPrice)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Purchase Price</span>
-                        <span className="font-medium">${formatCurrency(purchasePrice)}</span>
-                      </div>
-                      <div className="flex justify-between items-center font-medium text-green-600 pt-2">
-                        <span>Gross Equity Created</span>
-                        <span>${formatCurrency(expectedSellingPrice - purchasePrice)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Value Creation</h4>
-                      <div className="bg-gray-100 h-6 w-full rounded-lg overflow-hidden">
-                        <div 
-                          className="bg-blue-500 h-full" 
-                          style={{ width: `${(purchasePrice / expectedSellingPrice) * 100}%` }}
-                          title="Purchase Price"
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>Purchase: ${formatCurrency(purchasePrice)}</span>
-                        <span>Added Value: ${formatCurrency(expectedSellingPrice - purchasePrice)}</span>
-                        <span>ARV: ${formatCurrency(expectedSellingPrice)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Cost Breakdown */}
-                  <div className="bg-white border rounded-lg shadow-sm p-5">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Project Cost Breakdown</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Purchase Price</span>
-                        <span className="font-medium">${formatCurrency(purchasePrice)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Renovation Budget</span>
-                        <span className="font-medium">${formatCurrency(renovationCost)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Mortgage Payments</span>
-                        <span className="font-medium">${formatCurrency(monthlyPayment * holdingPeriod)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Other Holding Costs</span>
-                        <span className="font-medium">${formatCurrency(monthlyExpenses * holdingPeriod)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-                        <span className="text-gray-600">Selling Costs</span>
-                        <span className="font-medium">${formatCurrency(sellingCosts)}</span>
-                      </div>
-                      <div className="flex justify-between items-center font-medium text-red-600">
-                        <span>Total Project Costs</span>
-                        <span>${formatCurrency(purchasePrice + renovationCost + totalHoldingCosts + sellingCosts)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Expense Distribution Chart */}
+                {/* Key Performance Metrics */}
                 <div className="bg-white border rounded-lg shadow-sm p-5 mb-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Project Cost Distribution</h3>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={[
-                            { name: 'Purchase Price', value: purchasePrice },
-                            { name: 'Renovation', value: renovationCost },
-                            { name: 'Mortgage', value: monthlyPayment * holdingPeriod },
-                            { name: 'Other Holding Costs', value: monthlyExpenses * holdingPeriod },
-                            { name: 'Selling Costs', value: sellingCosts }
-                          ]}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {[
-                            '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#EE6666'
-                          ].map((color, index) => (
-                            <Cell key={`cell-${index}`} fill={color} />
-                          ))}
-                        </Pie>
-                        <RechartsTooltip 
-                          formatter={(value) => [`$${formatCurrency(value)}`, '']}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Key Performance Metrics</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-orange-50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-orange-700 mb-1">Cash Flow</p>
+                      <p className="text-2xl font-bold text-orange-900">${formatCurrency(annualStrCashFlow / 12)}/mo</p>
+                      <p className="text-sm text-orange-700">${formatCurrency(annualStrCashFlow)}/yr</p>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-green-700 mb-1">Cash-on-Cash Return</p>
+                      <p className="text-2xl font-bold text-green-900">{formatPercent(strCashOnCashReturn)}%</p>
+                      <p className="text-sm text-green-700">Annual return on investment</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-blue-700 mb-1">Occupancy Rate</p>
+                      <p className="text-2xl font-bold text-blue-900">{occupancyRate}%</p>
+                      <p className="text-sm text-blue-700">{Math.round(365 * occupancyRate / 100)} nights/year</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-4 text-center">
+                      <p className="text-sm text-purple-700 mb-1">Average Rate</p>
+                      <p className="text-2xl font-bold text-purple-900">${formatCurrency(nightlyRate)}</p>
+                      <p className="text-sm text-purple-700">per night</p>
+                    </div>
                   </div>
                 </div>
-                
-                {/* Continue with existing content */}
               </div>
             </div>
           )}
@@ -1552,46 +1977,69 @@ function Results() {
 
           {/* Primary Metrics Grid */}
           <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Key Performance Metrics</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Normalized Strategy Comparison</h2>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>Total ROI</strong> includes all returns: cash flow + appreciation + principal paydown (for rentals). This allows true apples-to-apples comparison across strategies.
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Fix & Flip Metrics */}
-              <div className={`bg-white p-4 rounded-lg shadow ${selectedStrategy === 'flip' || selectedStrategy === 'all' ? '' : 'opacity-50'}`}>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Fix & Flip</h3>
+              <div className={`bg-white p-4 rounded-lg shadow border-l-4 border-purple-500 ${selectedStrategy === 'flip' || selectedStrategy === 'all' ? '' : 'opacity-50'}`}>
+                <h3 className="text-lg font-medium text-gray-900 mb-2 flex items-center">
+                  <span className="w-3 h-3 bg-purple-500 rounded-full mr-2"></span>
+                  Fix & Flip
+                </h3>
                 <dl className="space-y-2">
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Total Investment</dt>
-                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(totalInvestment)}</dd>
+                    <dt className="text-sm text-gray-500">Total ROI (Annualized)</dt>
+                    <dd className="text-sm font-medium text-gray-900">{formatPercent(annualizedROI)}%</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Monthly Cash Flow</dt>
+                    <dd className="text-sm font-medium text-gray-900">$0</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Net Profit</dt>
                     <dd className="text-sm font-medium text-gray-900">${formatCurrency(netProfit)}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">ROI</dt>
-                    <dd className="text-sm font-medium text-gray-900">{formatPercent(roi)}%</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Annualized ROI</dt>
-                    <dd className="text-sm font-medium text-gray-900">{formatPercent(annualizedROI)}%</dd>
-                  </div>
-                  <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Timeline</dt>
                     <dd className="text-sm font-medium text-gray-900">{holdingPeriod} months</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Risk Level</dt>
+                    <dd className="text-sm font-medium text-gray-900">Medium</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Workload</dt>
+                    <dd className="text-sm font-medium text-gray-900">Medium</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Liquidity</dt>
+                    <dd className="text-sm font-medium text-gray-900">High</dd>
                   </div>
                 </dl>
               </div>
 
               {/* Long-Term Rental Metrics */}
-              <div className={`bg-white p-4 rounded-lg shadow ${selectedStrategy === 'ltr' || selectedStrategy === 'all' ? '' : 'opacity-50'}`}>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Long-Term Rental</h3>
+              <div className={`bg-white p-4 rounded-lg shadow border-l-4 border-green-500 ${selectedStrategy === 'ltr' || selectedStrategy === 'all' ? '' : 'opacity-50'}`}>
+                <h3 className="text-lg font-medium text-gray-900 mb-2 flex items-center">
+                  <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                  Long-Term Rental
+                </h3>
                 <dl className="space-y-2">
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Total ROI (Annualized)</dt>
+                    <dd className="text-sm font-medium text-green-700">{formatPercent(ltrTotalROIAnnualized)}%</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Monthly Rent</dt>
+                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(monthlyRent)}</dd>
+                  </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Monthly Cash Flow</dt>
                     <dd className="text-sm font-medium text-gray-900">${formatCurrency(annualCashFlow / 12)}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Annual Cash Flow</dt>
-                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(annualCashFlow)}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Cash-on-Cash Return</dt>
@@ -1599,38 +2047,61 @@ function Results() {
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Cap Rate</dt>
-                    <dd className="text-sm font-medium text-gray-900">{formatPercent((effectiveAnnualRent - totalAnnualExpenses) / (purchasePrice + renovationCost) * 100)}%</dd>
+                    <dd className="text-sm font-medium text-gray-900">{formatPercent(capRate)}%</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Monthly Rent</dt>
-                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(monthlyRent)}</dd>
+                    <dt className="text-sm text-gray-500">Vacancy Rate</dt>
+                    <dd className="text-sm font-medium text-gray-900">{vacancyRate}%</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Risk Level</dt>
+                    <dd className="text-sm font-medium text-green-600">Low</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Workload</dt>
+                    <dd className="text-sm font-medium text-green-600">Medium</dd>
                   </div>
                 </dl>
               </div>
 
               {/* Short-Term Rental Metrics */}
-              <div className={`bg-white p-4 rounded-lg shadow ${selectedStrategy === 'str' || selectedStrategy === 'all' ? '' : 'opacity-50'}`}>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Short-Term Rental</h3>
+              <div className={`bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500 ${selectedStrategy === 'str' || selectedStrategy === 'all' ? '' : 'opacity-50'}`}>
+                <h3 className="text-lg font-medium text-gray-900 mb-2 flex items-center">
+                  <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
+                  Short-Term Rental
+                </h3>
                 <dl className="space-y-2">
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Total ROI (Annualized)</dt>
+                    <dd className="text-sm font-medium text-yellow-700">{formatPercent(strTotalROIAnnualized)}%</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Nightly Rate</dt>
+                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(nightlyRate)}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Occupancy Rate</dt>
+                    <dd className="text-sm font-medium text-gray-900">{occupancyRate}%</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-sm text-gray-500">Monthly Revenue</dt>
+                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(annualStrRevenue / 12)}</dd>
+                  </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Monthly Cash Flow</dt>
                     <dd className="text-sm font-medium text-gray-900">${formatCurrency(annualStrCashFlow / 12)}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Annual Cash Flow</dt>
-                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(annualStrCashFlow)}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Cash-on-Cash Return</dt>
                     <dd className="text-sm font-medium text-gray-900">{formatPercent(strCashOnCashReturn)}%</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Annual Revenue</dt>
-                    <dd className="text-sm font-medium text-gray-900">${formatCurrency(annualStrRevenue)}</dd>
+                    <dt className="text-sm text-gray-500">Risk Level</dt>
+                    <dd className="text-sm font-medium text-red-600">High</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Occupancy Rate</dt>
-                    <dd className="text-sm font-medium text-gray-900">{formatPercent(occupancyRate)}%</dd>
+                    <dt className="text-sm text-gray-500">Workload</dt>
+                    <dd className="text-sm font-medium text-red-600">High</dd>
                   </div>
                 </dl>
               </div>
@@ -1767,7 +2238,7 @@ function Results() {
                         wrapperStyle={{ paddingTop: '20px' }}
                       />
                       <RechartsTooltip 
-                        formatter={(value) => [`${value.toFixed(1)} / 10`, '']}
+                        formatter={(value) => [`${value} / 10`, '']}
                         labelFormatter={(label) => `${label} Score`}
                         contentStyle={{ backgroundColor: 'white', borderRadius: '4px', border: '1px solid #e5e7eb' }}
                       />
@@ -1807,7 +2278,11 @@ function Results() {
                         }} 
                         radius={[0, 4, 4, 0]}
                         barSize={30}
-                      />
+                      >
+                        {weightedScoreData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1821,7 +2296,26 @@ function Results() {
                 Adjust the importance of each objective to match your investment priorities
               </p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Metric Explanations */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Metric Explanations:</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-600">
+                  <div>
+                    <span className="font-medium text-blue-700">ROI:</span> Total annualized return including cash flow, appreciation, and principal paydown
+                  </div>
+                  <div>
+                    <span className="font-medium text-green-700">Cash Flow:</span> Monthly income after all expenses (mortgage, taxes, insurance, maintenance)
+                  </div>
+                  <div>
+                    <span className="font-medium text-orange-700">Risk:</span> Market volatility, regulatory changes, vacancy rates, holding period uncertainty
+                  </div>
+                  <div>
+                    <span className="font-medium text-purple-700">Workload:</span> Time and effort required for management, maintenance, tenant relations, marketing
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label htmlFor="roi-weight" className="block text-sm font-medium text-gray-700">Return on Investment</label>
@@ -1850,22 +2344,6 @@ function Results() {
                     max="100"
                     value={objectiveWeights.cashFlow}
                     onChange={(e) => handleWeightChange('cashFlow', parseInt(e.target.value))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label htmlFor="appreciation-weight" className="block text-sm font-medium text-gray-700">Appreciation Potential</label>
-                    <span className="text-sm font-medium text-indigo-600">{objectiveWeights.appreciation}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    id="appreciation-weight"
-                    min="0"
-                    max="100"
-                    value={objectiveWeights.appreciation}
-                    onChange={(e) => handleWeightChange('appreciation', parseInt(e.target.value))}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
                 </div>
@@ -1903,109 +2381,234 @@ function Results() {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Sensitivity Analysis */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Sensitivity Analysis</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Adjust these parameters to see how changes affect your investment outcomes
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Purchase Price Slider */}
+            {/* New Advanced Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Cash Flow Projection Chart */}
               <div className="bg-white p-4 rounded-lg shadow">
-                <div className="flex justify-between">
-                  <label htmlFor="purchase-price" className="block text-sm font-medium text-gray-700">Purchase Price</label>
-                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.purchasePrice)}</span>
-                </div>
-                <input
-                  type="range"
-                  id="purchase-price"
-                  min={purchasePrice * 0.8}
-                  max={purchasePrice * 1.2}
-                  step={1000}
-                  value={sensitivityInputs.purchasePrice}
-                  onChange={(e) => handleSensitivityChange('purchasePrice', parseFloat(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>-20%</span>
-                  <span>Original: ${formatCurrency(purchasePrice)}</span>
-                  <span>+20%</span>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Cash Flow Progression (Years 0-5)</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Annual cash flow progression starting from Year 0, accounting for rent increases, property tax, and insurance changes
+                </p>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={cashFlowProjectionData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis 
+                        dataKey="year" 
+                        tick={{ fontSize: 12, fill: '#4b5563' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12, fill: '#4b5563' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickFormatter={(value) => `$${formatCurrency(value)}`}
+                      />
+                      <RechartsTooltip 
+                        formatter={(value, name, props) => {
+                          const strategyName = name === 'ltr' ? 'Long-Term Rental' : 
+                                             name === 'str' ? 'Short-Term Rental' : name;
+                          return [`$${formatCurrency(value)}`, strategyName];
+                        }}
+                        labelFormatter={(label) => label}
+                        contentStyle={{ backgroundColor: 'white', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="ltr" 
+                        stroke="#10b981" 
+                        strokeWidth={3}
+                        name="Long-Term Rental"
+                        dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="str" 
+                        stroke="#f59e0b" 
+                        strokeWidth={3}
+                        name="Short-Term Rental"
+                        dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
-              
-              {/* Renovation Cost Slider */}
+
+              {/* ROI Comparison Chart */}
               <div className="bg-white p-4 rounded-lg shadow">
-                <div className="flex justify-between">
-                  <label htmlFor="renovation-cost" className="block text-sm font-medium text-gray-700">Renovation Cost</label>
-                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.renovationCost)}</span>
-                </div>
-                <input
-                  type="range"
-                  id="renovation-cost"
-                  min={renovationCost * 0.7}
-                  max={renovationCost * 1.5}
-                  step={1000}
-                  value={sensitivityInputs.renovationCost}
-                  onChange={(e) => handleSensitivityChange('renovationCost', parseFloat(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>-30%</span>
-                  <span>Original: ${formatCurrency(renovationCost)}</span>
-                  <span>+50%</span>
-                </div>
-              </div>
-              
-              {/* ARV Slider */}
-              <div className="bg-white p-4 rounded-lg shadow">
-                <div className="flex justify-between">
-                  <label htmlFor="arv" className="block text-sm font-medium text-gray-700">After Repair Value</label>
-                  <span className="text-sm text-gray-500">${formatCurrency(sensitivityInputs.arv)}</span>
-                </div>
-                <input
-                  type="range"
-                  id="arv"
-                  min={expectedSellingPrice * 0.85}
-                  max={expectedSellingPrice * 1.15}
-                  step={1000}
-                  value={sensitivityInputs.arv}
-                  onChange={(e) => handleSensitivityChange('arv', parseFloat(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>-15%</span>
-                  <span>Original: ${formatCurrency(expectedSellingPrice)}</span>
-                  <span>+15%</span>
-                </div>
-              </div>
-              
-              {/* Interest Rate Slider */}
-              <div className="bg-white p-4 rounded-lg shadow">
-                <div className="flex justify-between">
-                  <label htmlFor="interest-rate" className="block text-sm font-medium text-gray-700">Interest Rate (%)</label>
-                  <span className="text-sm text-gray-500">{formatPercent(sensitivityInputs.interestRate)}%</span>
-                </div>
-                <input
-                  type="range"
-                  id="interest-rate"
-                  min={parseFloat(formData.interestRate) - 2}
-                  max={parseFloat(formData.interestRate) + 3}
-                  step={0.125}
-                  value={sensitivityInputs.interestRate}
-                  onChange={(e) => handleSensitivityChange('interestRate', parseFloat(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>-2%</span>
-                  <span>Original: {formData.interestRate}%</span>
-                  <span>+3%</span>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">ROI Comparison</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Annualized total return comparison across all strategies
+                </p>
+                <p className="text-xs text-gray-500 mb-4">
+                  Based on 5-year hold period including cash flow + appreciation + principal paydown ÷ 5 years
+                </p>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={[
+                      { 
+                        strategy: 'Fix & Flip', 
+                        roi: annualizedROI,
+                        color: '#8b5cf6'
+                      },
+                      { 
+                        strategy: 'Long-Term Rental', 
+                        roi: ltrTotalROIAnnualized,
+                        color: '#10b981'
+                      },
+                      { 
+                        strategy: 'Short-Term Rental', 
+                        roi: strTotalROIAnnualized,
+                        color: '#f59e0b'
+                      }
+                    ]}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis 
+                        dataKey="strategy" 
+                        tick={{ fontSize: 12, fill: '#4b5563' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12, fill: '#4b5563' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickFormatter={(value) => `${value}%`}
+                      />
+                      <RechartsTooltip 
+                        formatter={(value) => [`${formatPercent(value)}%`, 'Annual ROI']}
+                        labelFormatter={(label) => label}
+                        contentStyle={{ backgroundColor: 'white', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                      />
+                      <Bar 
+                        dataKey="roi" 
+                        fill="#8884d8"
+                        radius={[4, 4, 0, 0]}
+                      >
+                        {[
+                          { strategy: 'Fix & Flip', roi: annualizedROI, color: '#8b5cf6' },
+                          { strategy: 'Long-Term Rental', roi: ltrTotalROIAnnualized, color: '#10b981' },
+                          { strategy: 'Short-Term Rental', roi: strTotalROIAnnualized, color: '#f59e0b' }
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
+
+            {/* Renovation Timeline Chart (if condition is selected) */}
+            {(renovationTimelineData.length > 0) && (
+              <div className="bg-white p-4 rounded-lg shadow mb-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Renovation Timeline & Budget {formData.propertyCondition ? 
+                    `(${formData.propertyCondition.charAt(0).toUpperCase() + formData.propertyCondition.slice(1)} Condition)` : 
+                    '(Estimated Timeline)'}
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Estimated renovation phases and budget allocation over time
+                </p>
+                
+                {/* Timeline Visual */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-medium text-gray-700">Project Timeline</span>
+                    <span className="text-sm text-gray-500">
+                      Total Duration: {renovationTimelineData[renovationTimelineData.length - 1]?.weeks || 0} weeks
+                    </span>
+                  </div>
+                  
+                  <div className="relative">
+                    {/* Timeline bar */}
+                    <div className="w-full bg-gray-200 rounded-lg h-4 mb-4">
+                      {renovationTimelineData.map((phase, index) => {
+                        const totalWeeks = renovationTimelineData[renovationTimelineData.length - 1]?.weeks || 1;
+                        const startWeek = index === 0 ? 0 : renovationTimelineData[index - 1]?.weeks || 0;
+                        const phaseWeeks = phase.weeks - startWeek;
+                        const startPercent = (startWeek / totalWeeks) * 100;
+                        const widthPercent = (phaseWeeks / totalWeeks) * 100;
+                        
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
+                        const color = colors[index % colors.length];
+                        
+                        return (
+                          <div
+                            key={index}
+                            className="absolute top-0 h-4 rounded transition-all duration-300 hover:opacity-80"
+                            style={{
+                              left: `${startPercent}%`,
+                              width: `${widthPercent}%`,
+                              backgroundColor: color
+                            }}
+                            title={`${phase.phase}: ${phaseWeeks} weeks, $${formatCurrency(phase.cost - (index === 0 ? 0 : renovationTimelineData[index - 1]?.cost || 0))}`}
+                          />
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Phase labels */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+                      {renovationTimelineData.map((phase, index) => {
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16'];
+                        const color = colors[index % colors.length];
+                        const phaseWeeks = index === 0 ? phase.weeks : phase.weeks - renovationTimelineData[index - 1]?.weeks;
+                        const phaseCost = index === 0 ? phase.cost : phase.cost - renovationTimelineData[index - 1]?.cost;
+                        
+                        return (
+                          <div key={index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded">
+                            <div 
+                              className="w-3 h-3 rounded"
+                              style={{ backgroundColor: color }}
+                            />
+                            <div>
+                              <div className="font-medium text-gray-900">{phase.phase}</div>
+                              <div className="text-gray-500">{phaseWeeks}w • ${formatCurrency(phaseCost)}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cost Progression Chart */}
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={renovationTimelineData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis 
+                        dataKey="weeks"
+                        tick={{ fontSize: 12, fill: '#4b5563' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickFormatter={(value) => `${value}w`}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12, fill: '#4b5563' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                        tickFormatter={(value) => `$${formatCurrency(value)}`}
+                      />
+                      <RechartsTooltip 
+                        formatter={(value, name) => [`$${formatCurrency(value)}`, 'Cumulative Cost']}
+                        labelFormatter={(label) => `Week ${label}`}
+                        contentStyle={{ backgroundColor: 'white', borderRadius: '6px', border: '1px solid #e5e7eb' }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="cost"
+                        stroke="#3b82f6"
+                        fill="#3b82f6"
+                        fillOpacity={0.3}
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
           </div>
+
+
 
           {/* Property Details Summary */}
           <div className="mb-8">

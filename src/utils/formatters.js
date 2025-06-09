@@ -67,4 +67,37 @@ export const formatCompact = (value, decimals = 1) => {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
   }).format(value);
+};
+
+/**
+ * Format a number for input display (no currency symbol, just commas)
+ * @param {string|number} value - The value to format
+ * @returns {string} Formatted number string with commas
+ */
+export const formatNumberInput = (value) => {
+  if (!value) return '';
+  
+  // Remove any non-digit characters except decimal point
+  const numericValue = value.toString().replace(/[^\d.]/g, '');
+  
+  // Convert to number and format with commas
+  const number = parseFloat(numericValue);
+  if (isNaN(number)) return '';
+  
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(number);
+};
+
+/**
+ * Parse a formatted number input back to a numeric string
+ * @param {string} formattedValue - The formatted value with commas
+ * @returns {string} Clean numeric string
+ */
+export const parseNumberInput = (formattedValue) => {
+  if (!formattedValue) return '';
+  
+  // Remove commas and any other non-numeric characters except decimal point
+  return formattedValue.toString().replace(/[^\d.]/g, '');
 }; 

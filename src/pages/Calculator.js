@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import MoneyInput from '../components/MoneyInput';
 
 // Renovation cost estimates per square foot by condition
 const RENOVATION_COST_ESTIMATES = {
@@ -24,10 +25,10 @@ const REGIONAL_MULTIPLIERS = {
 
 // DIY discount factors
 const DIY_FACTORS = {
-  'significant': 0.6,  // 40% savings
-  'minimal': 0.85,     // 15% savings
-  'gc': 0.9,          // 10% savings
-  'none': 1.0         // No savings
+  'significant': 0.55,  // 45% savings - Electrical, Plumbing, Kitchen, Bath, Windows, Roofing
+  'some': 0.70,         // 30% savings - Paint, Vinyl Flooring + Act as GC
+  'gc': 0.80,          // 20% savings - Act as General Contractor
+  'hire': 1.0          // 0% savings - Hire General Contractor
 };
 
 function Calculator() {
@@ -37,7 +38,7 @@ function Calculator() {
     renovationCost: '',
     expectedSellingPrice: '700000',
     expectedMonthlyRent: '4500',
-    holdingPeriod: '12',
+    holdingPeriod: '6',
     downPayment: '20',
     interestRate: '7',
     loanTerm: '30',
@@ -53,7 +54,7 @@ function Calculator() {
     houseSize: '2000',
     houseCondition: 'poor',
     location: 'NJ',
-    diyLevel: 'minimal',
+    diyLevel: 'some',
     monthlyExpenses: '4000',
     nightlyRate: '340',
     occupancyRate: '65',
@@ -126,24 +127,11 @@ function Calculator() {
     
     const estimatedCost = Math.round(size * baseCost * regionalMultiplier * diyFactor / 100) * 100;
     
-    // Calculate timeline based on condition and size
-    let timeline;
-    if (condition === 'teardown') {
-      timeline = Math.max(6, Math.ceil(size / 1000) * 2); // 2 months per 1000 sq ft, minimum 6 months
-    } else if (condition === 'poor') {
-      timeline = Math.max(4, Math.ceil(size / 1000) * 1.5); // 1.5 months per 1000 sq ft, minimum 4 months
-    } else if (condition === 'fair') {
-      timeline = Math.max(3, Math.ceil(size / 1000)); // 1 month per 1000 sq ft, minimum 3 months
-    } else {
-      timeline = Math.max(2, Math.ceil(size / 1500)); // 1 month per 1500 sq ft, minimum 2 months
-    }
-    
     setFormData(prev => ({
       ...prev,
       renovationCost: estimatedCost.toString(),
       renovationMethod: 'estimate',
-      useBreakdown: false,
-      holdingPeriod: timeline.toString()
+      useBreakdown: false
     }));
     
     setOpenEstimator(false);
@@ -159,42 +147,46 @@ function Calculator() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
-            Real Estate Flip Calculator
+            Real Estate Investment Tool
           </h1>
           <p className="text-center text-gray-500 text-sm mb-6">
             Fields marked with * are required
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-10">
             {/* Purchase Details Section */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Purchase Details
-              </h2>
-              <p className="text-gray-500 text-sm">
-                Enter the property purchase details including price, financing terms, and down payment.
-              </p>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Purchase Details
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    Enter the property purchase details including price, financing terms, and down payment.
+                  </p>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-700">
                     Purchase Price *
                   </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
-                    </div>
-                    <input
-                      type="number"
-                name="purchasePrice"
-                      id="purchasePrice"
-                value={formData.purchasePrice}
-                onChange={handleChange}
-                required
-                      className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                      placeholder="0.00"
-                    />
-                  </div>
+                  <MoneyInput
+                    name="purchasePrice"
+                    id="purchasePrice"
+                    value={formData.purchasePrice}
+                    onChange={handleChange}
+                    required
+                    placeholder="485,000"
+                  />
                 </div>
 
                 <div>
@@ -263,13 +255,25 @@ function Calculator() {
             </div>
 
             {/* Renovation Details Section */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Renovation Details
-              </h2>
-              <p className="text-gray-500 text-sm">
-                You can choose to estimate renovation costs based on property condition, input a top-line estimate, or break down the renovation costs per item.
-              </p>
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Renovation Details
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    Choose between cost estimation methods or enter your own renovation budget.
+                  </p>
+                </div>
+              </div>
 
               <div className="border-b border-gray-200">
                 <nav className="-mb-px flex space-x-8">
@@ -408,10 +412,10 @@ function Calculator() {
                       onChange={handleChange}
                       className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                     >
-                      <option value="significant">Significant DIY (40% savings)</option>
-                      <option value="minimal">Minimal DIY (15% savings)</option>
-                      <option value="gc">General Contractor (10% savings)</option>
-                      <option value="none">No DIY (0% savings)</option>
+                      <option value="significant">Significant DIY - Electrical, Plumbing, Kitchen, Bath, Windows, Roofing (45% savings)</option>
+                      <option value="some">Some DIY - Paint, Vinyl Flooring + Act as GC (30% savings)</option>
+                      <option value="gc">Act as General Contractor - Manage & Sub Out Trades (20% savings)</option>
+                      <option value="hire">Hire General Contractor - Full Service (0% savings)</option>
                     </select>
                   </div>
 
@@ -447,21 +451,14 @@ function Calculator() {
                     <label htmlFor="renovationCost" className="block text-sm font-medium text-gray-700">
                       Renovation Cost *
                     </label>
-                    <div className="mt-1 relative rounded-md shadow-sm">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span className="text-gray-500 sm:text-sm">$</span>
-                      </div>
-                      <input
-                        type="number"
-                name="renovationCost"
-                        id="renovationCost"
-                value={formData.renovationCost}
-                onChange={handleChange}
-                required
-                        className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                        placeholder="0.00"
-                      />
-                    </div>
+                    <MoneyInput
+                      name="renovationCost"
+                      id="renovationCost"
+                      value={formData.renovationCost}
+                      onChange={handleChange}
+                      required
+                      placeholder="100,000"
+                    />
                   </div>
 
                   <button
@@ -497,34 +494,38 @@ function Calculator() {
             </div>
 
             {/* Selling Details Section */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Selling Details
-              </h2>
-              <p className="text-gray-500 text-sm">
-                Enter the After Repair Value (ARV) and associated selling costs.
-              </p>
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Selling Details
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    Enter the After Repair Value (ARV) and associated selling costs.
+                  </p>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <label htmlFor="expectedSellingPrice" className="block text-sm font-medium text-gray-700">
                     After Repair Value (ARV) *
                   </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
-                    </div>
-                    <input
-                type="number"
-                name="expectedSellingPrice"
-                      id="expectedSellingPrice"
-                value={formData.expectedSellingPrice}
-                onChange={handleChange}
-                required
-                      className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                      placeholder="0.00"
-                    />
-                  </div>
+                  <MoneyInput
+                    name="expectedSellingPrice"
+                    id="expectedSellingPrice"
+                    value={formData.expectedSellingPrice}
+                    onChange={handleChange}
+                    required
+                    placeholder="700,000"
+                  />
                 </div>
 
                 <div>
@@ -552,53 +553,50 @@ function Calculator() {
                   <label htmlFor="monthlyExpenses" className="block text-sm font-medium text-gray-700">
                     Monthly Expenses *
                   </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
-                    </div>
-                    <input
-                      type="number"
-                      name="monthlyExpenses"
-                      id="monthlyExpenses"
-                      value={formData.monthlyExpenses}
-                      onChange={handleChange}
-                      required
-                      className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                      placeholder="0.00"
-                    />
-                  </div>
+                  <MoneyInput
+                    name="monthlyExpenses"
+                    id="monthlyExpenses"
+                    value={formData.monthlyExpenses}
+                    onChange={handleChange}
+                    required
+                    placeholder="4,000"
+                  />
                 </div>
               </div>
             </div>
 
             {/* Rental Analysis Section */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Rental Analysis (Optional)
-              </h2>
-              <p className="text-gray-500 text-sm">
-                Enter the expected monthly rent to compare flip vs. rental strategy.
-              </p>
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Rental Analysis <span className="text-sm font-normal text-gray-500">(Optional)</span>
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    Enter the expected monthly rent to compare flip vs. rental strategy.
+                  </p>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <label htmlFor="expectedMonthlyRent" className="block text-sm font-medium text-gray-700">
                     Expected Monthly Rent
                   </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
-                    </div>
-                    <input
-                      type="number"
-                      name="expectedMonthlyRent"
-                      id="expectedMonthlyRent"
-                      value={formData.expectedMonthlyRent}
-                      onChange={handleChange}
-                      className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                      placeholder="0.00"
-                    />
-                  </div>
+                  <MoneyInput
+                    name="expectedMonthlyRent"
+                    id="expectedMonthlyRent"
+                    value={formData.expectedMonthlyRent}
+                    onChange={handleChange}
+                    placeholder="4,500"
+                  />
                 </div>
 
                 <div>
@@ -664,33 +662,37 @@ function Calculator() {
             </div>
 
             {/* Short-Term Rental Analysis Section */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Short-Term Rental Analysis (Optional)
-              </h2>
-              <p className="text-gray-500 text-sm">
-                Enter details to analyze potential as a short-term rental property.
-              </p>
+            <div className="bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-pink-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M10.5 3L12 2l1.5 1H21l-1 6H4l-1-6h7.5z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Short-Term Rental Analysis <span className="text-sm font-normal text-gray-500">(Optional)</span>
+                  </h2>
+                  <p className="text-gray-600 text-sm">
+                    Enter details to analyze potential as a short-term rental property.
+                  </p>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div>
                   <label htmlFor="nightlyRate" className="block text-sm font-medium text-gray-700">
                     Average Nightly Rate
                   </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
-                    </div>
-                    <input
-                      type="number"
-                      name="nightlyRate"
-                      id="nightlyRate"
-                      value={formData.nightlyRate || ""}
-                      onChange={handleChange}
-                      className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                      placeholder="0.00"
-                    />
-                  </div>
+                  <MoneyInput
+                    name="nightlyRate"
+                    id="nightlyRate"
+                    value={formData.nightlyRate || ""}
+                    onChange={handleChange}
+                    placeholder="340"
+                  />
                 </div>
 
                 <div>
@@ -737,20 +739,13 @@ function Calculator() {
                   <label htmlFor="additionalStrExpenses" className="block text-sm font-medium text-gray-700">
                     Additional Monthly Expenses
                   </label>
-                  <div className="mt-1 relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">$</span>
-                    </div>
-                    <input
-                      type="number"
-                      name="additionalStrExpenses"
-                      id="additionalStrExpenses"
-                      value={formData.additionalStrExpenses || "250"}
-                      onChange={handleChange}
-                      className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                      placeholder="250"
-                    />
-                  </div>
+                  <MoneyInput
+                    name="additionalStrExpenses"
+                    id="additionalStrExpenses"
+                    value={formData.additionalStrExpenses || "250"}
+                    onChange={handleChange}
+                    placeholder="250"
+                  />
                 </div>
               </div>
             </div>
