@@ -1,0 +1,95 @@
+{
+  "name": "real-estate-analysis-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Real Estate Investment Analysis Tool",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --detectOpenHandles",
+    "test:watch": "jest --watch --detectOpenHandles",
+    "test:coverage": "jest --coverage --detectOpenHandles",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "docs": "swagger-jsdoc -d swaggerDef.js src/routes/*.js -o swagger.json",
+    "migrate": "node src/scripts/migrate.js",
+    "seed": "node src/scripts/seed.js"
+  },
+  "keywords": [
+    "real-estate",
+    "investment",
+    "analysis",
+    "api",
+    "nodejs",
+    "express",
+    "mongodb"
+  ],
+  "author": "Babylon77",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "dotenv": "^16.3.1",
+    "joi": "^17.11.0",
+    "winston": "^3.11.0",
+    "compression": "^1.7.4",
+    "multer": "^1.4.5-lts.1",
+    "axios": "^1.6.0",
+    "stripe": "^14.5.0",
+    "nodemailer": "^6.9.7",
+    "puppeteer": "^21.5.0",
+    "redis": "^4.6.10",
+    "express-validator": "^7.0.1",
+    "swagger-ui-express": "^5.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "cookie-parser": "^1.4.6",
+    "express-session": "^1.17.3",
+    "connect-redis": "^7.1.0",
+    "sharp": "^0.32.6",
+    "csv-parser": "^3.0.0",
+    "pdf-kit": "^0.13.0",
+    "handlebars": "^4.7.8",
+    "cron": "^3.1.6",
+    "socket.io": "^4.7.4",
+    "uuid": "^9.0.1",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "openai": "^4.20.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "eslint": "^8.53.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.29.0",
+    "@babel/preset-env": "^7.23.3",
+    "babel-jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js",
+      "!src/config/**",
+      "!src/scripts/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 70,
+        "lines": 70,
+        "statements": 70
+      }
+    }
+  }
+}

@@ -238,8 +238,8 @@ const MonteCarloChart = ({ simulationData }) => {
         </div>
       </div>
       
-      <div className="relative border border-gray-200 rounded-lg">
-        <canvas ref={chartRef} style={{ height: '400px' }}></canvas>
+      <div className="relative border border-gray-200 rounded-lg overflow-x-auto mx-auto" style={{ maxWidth: '700px' }}>
+        <canvas ref={chartRef} style={{ height: '220px', width: '100%' }}></canvas>
       </div>
       
       <div className="mt-4 p-3 bg-gray-50 rounded-lg">

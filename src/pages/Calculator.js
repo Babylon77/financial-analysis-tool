@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MoneyInput from '../components/MoneyInput';
+import PropertyComparison from '../components/PropertyComparison';
 
 // Renovation cost estimates per square foot by condition
 const RENOVATION_COST_ESTIMATES = {
@@ -33,6 +34,7 @@ const DIY_FACTORS = {
 
 function Calculator() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('individual');
   const [formData, setFormData] = useState({
     purchasePrice: '485000',
     renovationCost: '',
@@ -150,6 +152,41 @@ function Calculator() {
             Real Estate Investment Tool
           </h1>
           <p className="text-center text-gray-500 text-sm mb-6">
+            Analyze individual properties or compare multiple investment opportunities
+          </p>
+
+          {/* Tab Navigation */}
+          <div className="flex justify-center border-b border-gray-200 mb-8">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+              <button
+                onClick={() => setActiveTab('individual')}
+                className={`${
+                  activeTab === 'individual'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Individual Analysis
+              </button>
+              <button
+                onClick={() => setActiveTab('comparison')}
+                className={`${
+                  activeTab === 'comparison'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              >
+                Property Comparison
+              </button>
+            </nav>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'comparison' ? (
+            <PropertyComparison />
+          ) : (
+            <>
+              <p className="text-center text-gray-500 text-sm mb-6">
             Fields marked with * are required
           </p>
 
@@ -759,6 +796,8 @@ function Calculator() {
               </button>
             </div>
         </form>
+          </>
+          )}
         </div>
       </div>
     </div>

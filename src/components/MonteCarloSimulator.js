@@ -1,22 +1,74 @@
-import React, { useState } from 'react';
-import { runMonteCarloSimulation, MARKET_PARAMS } from '../utils/monteCarloSimulation';
+import React, { useState, useEffect } from 'react';
+import { runMonteCarloSimulation, RISK_PROFILES } from '../utils/monteCarloSimulation';
 import MonteCarloChart from './MonteCarloChart';
 import MonteCarloResults from './MonteCarloResults';
 import { formatCurrency } from '../utils/formatters';
 
-const MonteCarloSimulator = ({ initialInvestment = 100000 }) => {
-  const [configValues, setConfigValues] = useState({
+const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
+  // Load persisted data from sessionStorage
+  const loadPersistedData = () => {
+    try {
+      const savedData = sessionStorage.getItem('assetAllocationData');
+      if (savedData) {
+        return JSON.parse(savedData);
+      }
+    } catch (error) {
+      console.error('Error loading persisted data:', error);
+    }
+    return {
     initialInvestment: initialInvestment,
     years: 30,
-    annualContribution: 0,
+      annualContribution: 50000,
     riskProfile: 'balanced',
-    numberOfSimulations: 1000,
+      numberOfSimulations: 10000,
     inflationRate: 2.5
-  });
+    };
+  };
 
-  const [simulationResults, setSimulationResults] = useState(null);
+  const [configValues, setConfigValues] = useState(loadPersistedData());
+
+  // Load persisted simulation results
+  const loadPersistedResults = () => {
+    try {
+      const savedData = sessionStorage.getItem('assetAllocationComplete');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        return parsed.simulationResults || null;
+      }
+    } catch (error) {
+      console.error('Error loading persisted results:', error);
+    }
+    return null;
+  };
+
+  const [simulationResults, setSimulationResults] = useState(loadPersistedResults());
   const [isLoading, setIsLoading] = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
+  const [showValidation, setShowValidation] = useState(!!loadPersistedResults());
+
+  // Persist data to sessionStorage whenever configValues change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('assetAllocationData', JSON.stringify(configValues));
+    } catch (error) {
+      console.error('Error saving data:', error);
+    }
+  }, [configValues]);
+
+  // Also persist simulation results for Advanced Retirement Planner
+  useEffect(() => {
+    if (simulationResults) {
+      try {
+        const dataToSave = {
+          ...configValues,
+          simulationResults,
+          lastUpdated: Date.now()
+        };
+        sessionStorage.setItem('assetAllocationComplete', JSON.stringify(dataToSave));
+      } catch (error) {
+        console.error('Error saving simulation results:', error);
+      }
+    }
+  }, [simulationResults, configValues]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -63,18 +115,9 @@ const MonteCarloSimulator = ({ initialInvestment = 100000 }) => {
   };
 
   const getProfileDescription = (profile) => {
-    switch(profile) {
-      case 'conservative':
-        return '40% stocks / 60% bonds - Lower risk, lower expected returns';
-      case 'balanced':
-        return '60% stocks / 40% bonds - Moderate risk and returns';
-      case 'growth':
-        return '80% stocks / 20% bonds - Higher risk, higher expected returns';
-      case 'aggressive':
-        return '100% stocks - Highest risk and potential returns';
-      default:
-        return '';
-    }
+    const p = RISK_PROFILES[profile];
+    if (!p) return '';
+    return `${p.stocks * 100}% stocks / ${p.bonds * 100}% bonds`;
   };
 
   return (
@@ -159,12 +202,13 @@ const MonteCarloSimulator = ({ initialInvestment = 100000 }) => {
               name="riskProfile"
               value={configValues.riskProfile}
               onChange={handleInputChange}
-              className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
             >
-              <option value="conservative">Conservative</option>
-              <option value="balanced">Balanced</option>
-              <option value="growth">Growth</option>
-              <option value="aggressive">Aggressive</option>
+              {Object.keys(RISK_PROFILES).map(profile => (
+                <option key={profile} value={profile}>
+                  {profile.charAt(0).toUpperCase() + profile.slice(1)}
+                </option>
+              ))}
             </select>
             <p className="mt-1 text-xs text-gray-500">
               {getProfileDescription(configValues.riskProfile)}
@@ -191,14 +235,36 @@ const MonteCarloSimulator = ({ initialInvestment = 100000 }) => {
             </p>
           </div>
           
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Number of Simulations
+            </label>
+            <input
+              type="number"
+              name="numberOfSimulations"
+              value={configValues.numberOfSimulations}
+              onChange={handleInputChange}
+              className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              placeholder="10000"
+              step="1000"
+              min="1000"
+              max="50000"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              More simulations = more stable results. 10,000+ recommended for reliable percentiles.
+            </p>
+          </div>
+          
           <div className="mt-4 bg-blue-50 p-3 rounded-lg text-xs text-blue-700">
-            <h4 className="font-medium text-blue-800 mb-1">Expected Return</h4>
+            <h4 className="font-medium text-blue-800 mb-1">Expected Return (Real Return Above Inflation)</h4>
             <p>
-              <strong>{MARKET_PARAMS[configValues.riskProfile].meanReturn}%</strong> annual average for {configValues.riskProfile} portfolio
+              <strong>{RISK_PROFILES[configValues.riskProfile].meanReturn}%</strong> annual average for {configValues.riskProfile} portfolio
               <br/>
-              <span className="text-blue-600">Range: {MARKET_PARAMS[configValues.riskProfile].worstYear}% to {MARKET_PARAMS[configValues.riskProfile].bestYear}% in a single year</span>
+              <span className="text-blue-600">Range: {RISK_PROFILES[configValues.riskProfile].worstYear}% to {RISK_PROFILES[configValues.riskProfile].bestYear}% in a single year</span>
               <br/>
-              <span className="text-blue-600">Historical max drawdown: {MARKET_PARAMS[configValues.riskProfile].maxDrawdown}%</span>
+              <span className="text-blue-600">Historical max drawdown: {RISK_PROFILES[configValues.riskProfile].maxDrawdown}%</span>
+              <br/>
+              <span className="text-blue-500 font-medium">💡 These returns are inflation-adjusted (real returns). Simulation accounts for {configValues.inflationRate}% inflation.</span>
             </p>
           </div>
         </div>
@@ -240,11 +306,11 @@ const MonteCarloSimulator = ({ initialInvestment = 100000 }) => {
                 <p className="mb-2">This simulation has been calibrated to match historical performance:</p>
                 <ul className="list-disc pl-5 space-y-1 text-gray-700">
                   <li>
-                    <strong>Target annual return:</strong> {MARKET_PARAMS[configValues.riskProfile].meanReturn}% | 
+                    <strong>Target annual return:</strong> {RISK_PROFILES[configValues.riskProfile].meanReturn}% | 
                     <strong> Simulated:</strong> {(simulationResults.avgAnnualReturn * 100).toFixed(2)}%
                   </li>
                   <li>
-                    <strong>Historical drawdowns:</strong> {Math.abs(MARKET_PARAMS[configValues.riskProfile].maxDrawdown)}% | 
+                    <strong>Historical drawdowns:</strong> {Math.abs(RISK_PROFILES[configValues.riskProfile].maxDrawdown)}% | 
                     <strong> Simulated:</strong> {Math.abs((simulationResults.drawdowns.worst * 100).toFixed(1))}%
                   </li>
                   <li>
@@ -284,7 +350,7 @@ const MonteCarloSimulator = ({ initialInvestment = 100000 }) => {
                   <span className="font-bold capitalize">{configValues.riskProfile}</span>
                 </p>
                 <p className="text-xs text-gray-600">
-                  Historical range: {MARKET_PARAMS[configValues.riskProfile].worstYear}% to {MARKET_PARAMS[configValues.riskProfile].bestYear}%
+                  Historical range: {RISK_PROFILES[configValues.riskProfile].worstYear}% to {RISK_PROFILES[configValues.riskProfile].bestYear}%
                 </p>
               </div>
             </div>
