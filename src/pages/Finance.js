@@ -397,228 +397,81 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
   // Rerun Monte Carlo simulation with current asset allocation parameters
   const rerunMonteCarloSimulation = () => {
     setIsRerunningMonteCarlo(true);
-    
-    // Short timeout to allow UI to update with loading state
+    // Use a timeout to allow the UI to update and show the loading spinner
     setTimeout(() => {
-      try {
-        // Get current asset allocation parameters
-        const savedData = sessionStorage.getItem('assetAllocationComplete');
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          
-          // Calculate the CORRECT time horizon for retirement planning
-          const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
-          const retirementYears = selectedHeatmapAge - currentAge;
-          
-          // Run new Monte Carlo simulation with RETIREMENT-SPECIFIC parameters
-          // Note: inflationRate in sessionStorage is already stored as decimal (e.g., 0.025 for 2.5%)
-          // but if it's stored as percentage, we need to convert it
-          const inflationRate = parsed.inflationRate > 1 ? parsed.inflationRate / 100 : parsed.inflationRate || 0.025;
-          
-          console.log('🔄 Rerunning Monte Carlo with RETIREMENT-SPECIFIC parameters:', {
-            initialInvestment: scenarioData.currentNetWorth,
-            years: retirementYears,
-            annualContribution: scenarioData.annualSavings,
-            riskProfile: parsed.riskProfile || 'balanced',
-            numberOfSimulations: parsed.numberOfSimulations || 10000,
-            inflationRate: inflationRate,
-            inflationRatePercent: (inflationRate * 100).toFixed(1) + '%',
-            note: `Using retirement timeline (${retirementYears} years) instead of original Asset Allocation timeline (${parsed.years} years)`
-          });
-          
-          const newResults = runMonteCarloSimulation({
-            initialInvestment: scenarioData.currentNetWorth,
-            years: retirementYears,
-            annualContribution: scenarioData.annualSavings,
-            riskProfile: parsed.riskProfile || 'balanced',
-            numberOfSimulations: parsed.numberOfSimulations || 10000,
-            inflationRate: inflationRate
-          });
-          
-          // Update stored data with new RETIREMENT-SPECIFIC simulation results
-          const updatedData = {
-            ...parsed,
-            // Update parameters to reflect retirement-specific simulation
-            initialInvestment: scenarioData.currentNetWorth,
-            years: retirementYears,
-            annualContribution: scenarioData.annualSavings,
-            simulationResults: {
-              ...newResults,
-              lastUpdated: Date.now(),
-              retirementSpecific: true,
-              retirementYears: retirementYears
-            },
-            lastUpdated: Date.now()
-          };
-          sessionStorage.setItem('assetAllocationComplete', JSON.stringify(updatedData));
-          
-          // Force reload asset allocation data with new results
-          const newAssetData = loadAssetAllocationData();
-          setAssetData(newAssetData); // Update assetData state with new Monte Carlo results
-          setScenarioData(prev => ({
-            ...prev,
-            currentNetWorth: newAssetData.currentNetWorth,
-            annualSavings: newAssetData.annualSavings,
-            expectedReturn: newAssetData.expectedReturn,
-            riskProfile: newAssetData.riskProfile
-          }));
-          
-          // Clear heatmap and automatically regenerate with new Monte Carlo data
-          setHeatmapData([]);
-          
-          // Auto-regenerate heatmap with new data after a short delay
-          setTimeout(() => {
-            generateHeatmap();
-          }, 200);
-          
-        } else {
-          console.warn('No asset allocation data found - cannot rerun simulation');
+        const { currentNetWorth, riskProfile, endAge, spouse1CurrentAge } = scenarioData;
+        if (!currentNetWorth) {
+            console.error("Cannot run simulation without current net worth.");
+            setIsRerunningMonteCarlo(false);
+            return;
         }
-      } catch (error) {
-        console.error("Error rerunning Monte Carlo simulation:", error);
-      } finally {
+        const years = endAge - spouse1CurrentAge;
+
+        // For the main simulation, we assume contributions continue until the selected retirement age
+        const { spouse1RetirementAge, spouse2RetirementAge, annualSavings } = scenarioData;
+        const spouse1ContributionYears = spouse1RetirementAge - spouse1CurrentAge;
+        const spouse2ContributionYears = spouse2RetirementAge - scenarioData.spouse2CurrentAge;
+        
+        const annualContributions = Array.from({ length: years }, (_, i) => {
+            let contribution = 0;
+            if (i < spouse1ContributionYears) contribution += annualSavings / 2;
+            if (i < spouse2ContributionYears) contribution += annualSavings / 2;
+            return contribution;
+        });
+
+        const results = runMonteCarloSimulation({
+            initialInvestment: currentNetWorth,
+            years: years,
+            annualContributions: annualContributions,
+            riskProfile: riskProfile,
+            numberOfSimulations: 5000, // Use a reasonable number for performance
+        });
+        
+        // Update assetData with the new results
+        setAssetData(prev => ({ ...prev, monteCarloResults: results }));
         setIsRerunningMonteCarlo(false);
-      }
     }, 100);
   };
 
-  // Calculate retirement scenario with proper Monte Carlo integration
+  // Main calculation function for both time series and heatmap
   const calculateRetirementScenario = (spouse1RetAge, spouse2RetAge) => {
-    const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
-    const totalYears = selectedHeatmapAge - currentAge;
+    const {
+      spouse1CurrentAge,
+      spouse2CurrentAge,
+      currentNetWorth,
+      annualSavings,
+      riskProfile,
+      endAge
+    } = scenarioData;
+
+    const years = endAge - Math.min(spouse1CurrentAge, spouse2CurrentAge);
     
-    // Debug logging for parameter comparison (only for first calculation)
-    if (spouse1RetAge === scenarioData.spouse1RetirementAge && spouse2RetAge === scenarioData.spouse2RetirementAge) {
-      console.log('🎯 Retirement Calculation Debug:', {
-        retirementParams: {
-      currentAge,
-          selectedHeatmapAge,
-          totalYears,
-          spouse1RetAge,
-          spouse2RetAge,
-          currentNetWorth: scenarioData.currentNetWorth,
-          annualSavings: scenarioData.annualSavings,
-          expectedReturn: scenarioData.expectedReturn
-        },
-        monteCarloOriginalParams: assetData.originalParams,
-        parameterComparison: {
-          netWorthMatch: assetData.originalParams?.initialInvestment === scenarioData.currentNetWorth,
-          savingsMatch: assetData.originalParams?.annualContribution === scenarioData.annualSavings,
-          yearsMatch: assetData.originalParams?.years === totalYears,
-          riskProfileMatch: assetData.originalParams?.riskProfile === scenarioData.riskProfile
+    // Generate the dynamic contributions array
+    const spouse1ContributionYears = spouse1RetAge - spouse1CurrentAge;
+    const spouse2ContributionYears = spouse2RetAge - spouse2CurrentAge;
+
+    const annualContributions = Array.from({ length: years }, (_, i) => {
+        const currentYearAbsolute = Math.min(spouse1CurrentAge, spouse2CurrentAge) + i;
+        let contribution = 0;
+        if (currentYearAbsolute < spouse1RetAge) {
+            contribution += annualSavings / 2; // Assuming savings are split
         }
-      });
-    }
-    
-    // Get actual return sequence from Monte Carlo simulation
-    let returnSequence = [];
-    if (assetData.monteCarloResults && assetData.monteCarloResults.yearlyReturns) {
-      const mcReturns = assetData.monteCarloResults.yearlyReturns;
-      
-      // Map scenario to available Monte Carlo percentile paths with proper fallbacks
-      if (monteCarloScenario === 'best') {
-        returnSequence = mcReturns.p99 || mcReturns.best || mcReturns.p90 || mcReturns.median || [];
-      } else if (monteCarloScenario === 'optimistic') {
-        returnSequence = mcReturns.p90 || mcReturns.optimistic || mcReturns.best || mcReturns.median || [];
-      } else if (monteCarloScenario === 'median') {
-        returnSequence = mcReturns.median || [];
-      } else if (monteCarloScenario === 'pessimistic') {
-        returnSequence = mcReturns.p10 || mcReturns.median || [];
-      } else if (monteCarloScenario === 'worst') {
-        // Use 1st percentile path for worst; fall back to absolute worst if p1 missing
-        returnSequence = mcReturns.p1 || mcReturns.worst || mcReturns.median || [];
-      } else {
-        returnSequence = mcReturns.median || [];
-      }
-      
-      // Debug only first instance of length mismatch to avoid spam
-      if (returnSequence.length !== totalYears && spouse1RetAge === scenarioData.spouse1RetirementAge && spouse2RetAge === scenarioData.spouse2RetirementAge && monteCarloScenario === 'median') {
-        console.log('📊 Return Sequence Length Mismatch (showing once):', {
-          sequenceLength: returnSequence.length,
-          expectedLength: totalYears,
-          note: 'This indicates a year counting mismatch between Monte Carlo and retirement calculation'
-        });
-      }
-    }
-    
-    // If no Monte Carlo data or sequence too short, fallback to constant return
-    if (returnSequence.length === 0) {
-      const constantReturn = scenarioData.expectedReturn / 100;
-      returnSequence = Array(totalYears + 1).fill(constantReturn);
-      console.log('⚠️ Using fallback constant return:', (constantReturn * 100).toFixed(2) + '%');
-    } else if (returnSequence.length !== totalYears) {
-      // Length mismatch - handle silently to avoid spam
-      
-      // If sequence is shorter, extend it with the last return
-      if (returnSequence.length < totalYears) {
-        const lastReturn = returnSequence[returnSequence.length - 1] || (scenarioData.expectedReturn / 100);
-        while (returnSequence.length < totalYears) {
-          returnSequence.push(lastReturn);
+        if (currentYearAbsolute < spouse2RetAge) {
+            contribution += annualSavings / 2;
         }
-      }
-      // If sequence is longer, truncate it
-      else {
-        returnSequence = returnSequence.slice(0, totalYears);
-      }
-    }
+        return contribution;
+    });
     
-    let portfolioValue = scenarioData.currentNetWorth;
-    
-    // Year-by-year calculation using actual return sequence
-    for (let year = 0; year <= totalYears; year++) {
-      const age = currentAge + year;
-      
-      if (year === 0) {
-        // Skip calculation for year 0, just use starting value
-        continue;
-      }
-      
-      // Calculate savings for this year
-      let savingsThisYear = scenarioData.annualSavings;
-      const spouse1Retired = age >= spouse1RetAge;
-      const spouse2Retired = age >= spouse2RetAge;
-      
-      if (spouse1Retired && spouse2Retired) {
-        savingsThisYear = 0; // Both retired, no more savings
-      } else if (spouse1Retired || spouse2Retired) {
-        savingsThisYear = scenarioData.annualSavings * 0.5; // One retired, reduced savings
-      }
-      
-      // Apply drawdown phases
-      let netSavings = savingsThisYear;
-      scenarioData.drawdownPhases.forEach(phase => {
-        if (age >= phase.startAge && age <= phase.endAge) {
-          netSavings -= phase.annualAmount;
-        }
-      });
-      
-      // Get return for this specific year from Monte Carlo sequence
-      const yearIndex = Math.min(year - 1, returnSequence.length - 1);
-      const thisYearReturn = returnSequence[yearIndex] || (scenarioData.expectedReturn / 100);
-      
-      // Apply growth and add net savings
-      portfolioValue = portfolioValue * (1 + thisYearReturn) + netSavings;
-    }
-    
-    // Debug final result (only for median scenario of default retirement ages to avoid spam)
-    if (spouse1RetAge === scenarioData.spouse1RetirementAge && spouse2RetAge === scenarioData.spouse2RetirementAge && monteCarloScenario === 'median') {
-      console.log('💰 Final Portfolio Calculation (median scenario):', {
-        finalValue: portfolioValue,
-        formattedValue: formatCurrency(portfolioValue),
-        startingValue: scenarioData.currentNetWorth,
-        totalYears: totalYears,
-        avgAnnualReturn: returnSequence.length > 0 ? (returnSequence.reduce((a, b) => a + b, 0) / returnSequence.length * 100).toFixed(2) + '%' : 'N/A'
-      });
-    }
-    
-    return {
-      portfolioAtFirstRetirement: portfolioValue,
-      portfolioAtTargetAge: portfolioValue,
-      firstRetirementAge: Math.min(spouse1RetAge, spouse2RetAge),
-      lastRetirementAge: Math.max(spouse1RetAge, spouse2RetAge),
-      isViable: portfolioValue > 0,
-      returnSequenceUsed: returnSequence.slice(0, totalYears)
-    };
+    // Run the simulation with dynamic contributions
+    const simulationResults = runMonteCarloSimulation({
+      initialInvestment: currentNetWorth,
+      years,
+      annualContributions,
+      riskProfile,
+      numberOfSimulations: 2000, // Lower number for heatmap performance
+    });
+
+    return simulationResults;
   };
 
   // Generate heatmap data
@@ -650,10 +503,10 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
           heatmapResults.push({
             spouse1RetirementAge: s1Age,
             spouse2RetirementAge: s2Age,
-            portfolioValue: result.portfolioAtTargetAge,
-            isViable: result.isViable,
-            firstRetirementAge: result.firstRetirementAge,
-            lastRetirementAge: result.lastRetirementAge
+            portfolioValue: result.medianPath[selectedHeatmapAge - Math.min(s1Age, s2Age)],
+            isViable: result.medianPath.length > selectedHeatmapAge - Math.min(s1Age, s2Age) && selectedHeatmapAge - Math.min(s1Age, s2Age) >= 0,
+            firstRetirementAge: Math.min(s1Age, s2Age),
+            lastRetirementAge: Math.max(s1Age, s2Age)
           });
         });
       });
@@ -674,133 +527,27 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
 
   // Generate time series data for all Monte Carlo scenarios
   const generateTimeSeriesData = () => {
-    const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
-    const analysisAge = selectedHeatmapAge;
-    const yearsToAnalysis = analysisAge - currentAge;
-    
-    if (yearsToAnalysis <= 0) return [];
-    
-    const timeSeriesData = [];
-    
-    // Get actual return sequences from Monte Carlo simulation
-    let returnSequences = {};
-    if (assetData.monteCarloResults && assetData.monteCarloResults.yearlyReturns) {
-      const mcReturns = assetData.monteCarloResults.yearlyReturns;
-      
-      // Map 4 retirement scenarios to available Monte Carlo percentile paths with proper fallbacks
-      returnSequences = {
-        best: mcReturns.p99 || mcReturns.best || mcReturns.p90 || mcReturns.median || [],   // Top 1 %
-        optimistic: mcReturns.p90 || mcReturns.optimistic || mcReturns.best || mcReturns.median || [], // 90th %
-        median: mcReturns.median || [],
-        pessimistic: mcReturns.p10 || mcReturns.median || [],
-        worst: mcReturns.p1 || mcReturns.worst || mcReturns.median || []
-      };
+    if (!assetData.monteCarloResults) {
+        return []; // Return empty array if the main simulation hasn't run yet
     }
-    
-    // Fallback to constant returns if no Monte Carlo data
-    const fallbackReturn = scenarioData.expectedReturn / 100;
-    
-    // Ensure we have all required scenarios with correct length
-    const requiredScenarios = ['best', 'optimistic', 'median', 'pessimistic', 'worst'];
-    requiredScenarios.forEach(scenario => {
-      if (!returnSequences[scenario] || returnSequences[scenario].length === 0) {
-        returnSequences[scenario] = Array(yearsToAnalysis).fill(fallbackReturn);
-      } else if (returnSequences[scenario].length > yearsToAnalysis) {
-        // Trim if too long
-        returnSequences[scenario] = returnSequences[scenario].slice(0, yearsToAnalysis);
-      } else if (returnSequences[scenario].length < yearsToAnalysis) {
-        // Extend if too short
-        const lastReturn = returnSequences[scenario][returnSequences[scenario].length - 1] || fallbackReturn;
-        while (returnSequences[scenario].length < yearsToAnalysis) {
-          returnSequences[scenario].push(lastReturn);
-        }
-      }
+
+    const { spouse1RetirementAge, spouse2RetirementAge } = scenarioData;
+    const results = calculateRetirementScenario(spouse1RetirementAge, spouse2RetirementAge);
+
+    const timeSeries = results.medianPath.map((value, index) => {
+      const year = scenarioData.spouse1CurrentAge + index;
+      return {
+        age: year,
+        year,
+        best: results.bestPath[index] || value,
+        optimistic: results.optimisticPath[index] || value,
+        median: results.medianPath[index] || value,
+        pessimistic: results.pessimisticPath[index] || value,
+        worst: results.worstPath[index] || value
+      };
     });
     
-    // Debug logging only for critical issues
-    const hasMonteCarloData = !!(assetData.monteCarloResults && assetData.monteCarloResults.yearlyReturns);
-    const lengthMismatch = Object.values(returnSequences).some(seq => seq.length !== yearsToAnalysis);
-    
-    if (!hasMonteCarloData && yearsToAnalysis > 0) {
-      console.log('📊 Time Series: Using fallback constant returns (no Monte Carlo data available)');
-    } else if (lengthMismatch) {
-      console.log('📊 Time Series: Length mismatch detected, using available data with adjustments');
-    } else if (hasMonteCarloData) {
-      // Validate percentile ordering for first year returns
-      const firstYearReturns = {
-        worst: returnSequences.worst[0] || 0,
-        pessimistic: returnSequences.pessimistic[0] || 0,
-        median: returnSequences.median[0] || 0,
-        optimistic: returnSequences.optimistic[0] || 0,
-        best: returnSequences.best[0] || 0
-      };
-      
-      // Check if ordering makes sense (worst < pessimistic < median < optimistic < best)
-      const isOrdered = firstYearReturns.worst <= firstYearReturns.pessimistic && 
-                       firstYearReturns.pessimistic <= firstYearReturns.median && 
-                       firstYearReturns.median <= firstYearReturns.optimistic &&
-                       firstYearReturns.optimistic <= firstYearReturns.best;
-      
-      if (!isOrdered) {
-        console.log('⚠️ Percentile ordering issue detected in first year returns:', firstYearReturns);
-      }
-    }
-    
-
-    
-    for (let year = 0; year <= yearsToAnalysis; year++) {
-      const age = currentAge + year;
-      
-      let portfolioValues = {};
-      
-      if (year === 0) {
-        // Starting values
-        portfolioValues = {
-          best: scenarioData.currentNetWorth,
-          optimistic: scenarioData.currentNetWorth,
-          median: scenarioData.currentNetWorth,
-          pessimistic: scenarioData.currentNetWorth,
-          worst: scenarioData.currentNetWorth
-        };
-      } else {
-        // Calculate savings for this year (EXACTLY same logic as heatmap)
-        let savingsThisYear = scenarioData.annualSavings;
-        const spouse1Retired = age >= scenarioData.spouse1RetirementAge;
-        const spouse2Retired = age >= scenarioData.spouse2RetirementAge;
-        
-        if (spouse1Retired && spouse2Retired) {
-          savingsThisYear = 0; // Both retired, no more savings
-        } else if (spouse1Retired || spouse2Retired) {
-          savingsThisYear = scenarioData.annualSavings * 0.5; // One retired, reduced savings
-        }
-        
-        // Apply drawdown phases (EXACTLY same logic as heatmap)
-        let netSavings = savingsThisYear;
-        scenarioData.drawdownPhases.forEach(phase => {
-          if (age >= phase.startAge && age <= phase.endAge) {
-            netSavings -= phase.annualAmount;
-          }
-        });
-        
-        const previousData = timeSeriesData[year - 1];
-        
-        // Calculate each scenario using actual Monte Carlo return sequences
-        Object.keys(returnSequences).forEach(scenario => {
-          const prevValue = previousData[scenario];
-          const yearIndex = Math.min(year - 1, returnSequences[scenario].length - 1);
-          const thisYearReturn = returnSequences[scenario][yearIndex] || fallbackReturn;
-          portfolioValues[scenario] = prevValue * (1 + thisYearReturn) + netSavings;
-        });
-      }
-      
-      timeSeriesData.push({
-        age,
-        year,
-        ...portfolioValues
-      });
-    }
-    
-    return timeSeriesData;
+    return timeSeries;
   };
 
   const timeSeriesData = generateTimeSeriesData();
