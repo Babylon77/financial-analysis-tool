@@ -517,22 +517,24 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
   }
 
   const getHeatmapColor = (value) => {
-    const currentNetWorth = scenarioData.currentNetWorth;
-    if (value < currentNetWorth * 0.8) return '#EF4444'; // Red - significant loss
-    if (value < currentNetWorth) return '#F97316'; // Orange - some loss
-    if (value < currentNetWorth * 1.5) return '#EAB308'; // Yellow - minimal gain
-    if (value < currentNetWorth * 2.5) return '#84CC16'; // Lime - good growth
-    return '#22C55E'; // Green - excellent growth
+    if (value < 2000000) return '#ef4444'; // red-500
+    if (value < 10000000) return '#22c55e'; // green-500
+    return '#10b981'; // green-600
   };
 
   // Generate time series data for all Monte Carlo scenarios
   const generateTimeSeriesData = () => {
     if (!assetData.monteCarloResults) {
-        return []; // Return empty array if the main simulation hasn't run yet
+        return null; // Return null instead of an empty array to signify missing data
     }
 
     const { spouse1RetirementAge, spouse2RetirementAge } = scenarioData;
     const results = calculateRetirementScenario(spouse1RetirementAge, spouse2RetirementAge);
+
+    if (!results || !results.medianPath) {
+        console.error("Scenario calculation failed to produce valid results.");
+        return null; // Handle potential failure in scenario calculation
+    }
 
     const timeSeries = results.medianPath.map((value, index) => {
       const year = scenarioData.spouse1CurrentAge + index;
@@ -551,7 +553,8 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
   };
 
   const timeSeriesData = generateTimeSeriesData();
-  
+  const [activeMetric, setActiveMetric] = useState('portfolioValue');
+
   return (
     <div className="max-w-full mx-auto px-4">
       <div className="mb-6">
@@ -923,88 +926,42 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
                 </div>
                 
                 {/* Time Series Chart */}
-                {timeSeriesData.length > 0 && (
-                  <div className="mb-6">
-                    <h5 className="text-base font-semibold text-gray-800 mb-3">Portfolio Progression Over Time</h5>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-                        <LineChart 
-                          data={timeSeriesData}
-                          margin={{ top: 20, right: 30, left: 70, bottom: 70 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                          <XAxis 
-                            dataKey="age" 
-                            stroke="#6B7280"
-                            fontSize={12}
-                            label={{ value: 'Age', position: 'insideBottom', offset: -5, textAnchor: 'middle' }}
-                          />
-                          <YAxis 
-                            stroke="#6B7280"
-                            fontSize={12}
-                            tickFormatter={(value) => formatCurrency(value, { decimals: 1, compact: true })}
-                            label={{ value: 'Portfolio Value', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
-                          />
-                          <Tooltip 
-                            formatter={(value, name) => [formatCurrency(value, { decimals: 1, compact: true }), name]}
-                            labelFormatter={(age) => `Age ${age}`}
-                            contentStyle={{
-                              backgroundColor: 'white',
-                              border: '1px solid #E5E7EB',
-                              borderRadius: '8px'
-                            }}
-                          />
-                          <Legend 
-                            verticalAlign="top" 
-                            height={36}
-                            wrapperStyle={{ paddingBottom: '20px' }}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="best" 
-                            stroke="#16a34a" 
-                            strokeWidth={2}
-                            name="Best Case (Top 1%)"
-                            dot={false}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="optimistic" 
-                            stroke="#22C55E" 
-                            strokeWidth={2}
-                            name="Optimistic Case (90th %)"
-                            dot={false}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="median" 
-                            stroke="#3B82F6" 
-                            strokeWidth={2}
-                            name="Median Case (50th %)"
-                            dot={false}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="pessimistic" 
-                            stroke="#F59E0B" 
-                            strokeWidth={2}
-                            name="Pessimistic Case (10th %)"
-                            dot={false}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="worst" 
-                            stroke="#EF4444" 
-                            strokeWidth={2}
-                            name="Worst Case (1st %)"
-                            dot={false}
-                          />
-                        </LineChart>
-            </ResponsiveContainer>
-          </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      💡 This chart shows how your portfolio might grow under different market scenarios, including the effects of retirement timing and drawdown phases.
+                {!timeSeriesData ? (
+                  <div className="text-center p-8 my-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h3 className="text-lg font-semibold text-yellow-800">Prerequisite Data Missing</h3>
+                    <p className="mt-2 text-md text-yellow-700">
+                      Please run the simulation on the <strong className="font-semibold">Asset Allocation Planner</strong> tab first to generate the time series analysis.
                     </p>
+                    <button
+                      onClick={() => setActiveTab('allocation')}
+                      className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Go to Asset Allocation Planner
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-8">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Retirement Scenario Analysis</h3>
+                    <div className="flex justify-center mb-4">
+                      <select value={activeMetric} onChange={(e) => setActiveMetric(e.target.value)} className="p-2 border rounded">
+                        <option value="portfolioValue">Portfolio Value</option>
+                        <option value="drawdown">Annual Drawdown</option>
+                        <option value="income">Annual Income</option>
+                      </select>
+                    </div>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <LineChart data={timeSeriesData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="year" />
+                        <YAxis tickFormatter={(value) => formatCurrency(value, true)} />
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                        <Legend />
+                        <Line type="monotone" dataKey={activeMetric} stroke="#8884d8" name={
+                          activeMetric === 'portfolioValue' ? 'Portfolio Value' :
+                          activeMetric === 'drawdown' ? 'Annual Drawdown' : 'Annual Income'
+                        } />
+                      </LineChart>
+                    </ResponsiveContainer>
                   </div>
                 )}
                 
