@@ -7,7 +7,7 @@
 // Sources: Combination of historical data (S&P 500, US 10-Year Treasury, CPI) and standard capital market assumptions.
 export const ASSET_CLASS_PARAMS = {
   stocks: {
-    mean: 0.105,  // Expected long-term arithmetic mean return for equities
+    mean: 0.095,  // Expected long-term real return for equities (9.5% real, ~12.5% nominal with 3% inflation)
     stdDev: 0.18, // Volatility of equity returns
   },
   bonds: {
@@ -61,6 +61,7 @@ const runSimulationPath = ({
   initialInvestment,
   years,
   annualContribution,
+  savingsGrowthRate,
   allocation,
 }) => {
   // Destructure parameters for stocks, bonds, and inflation
@@ -91,11 +92,6 @@ const runSimulationPath = ({
   const equityReturnsHistory = [];
   
   for (let year = 1; year <= years; year++) {
-    // Add annual contribution at the start of the year
-    if (year > 1 && annualContribution > 0) {
-      currentNominalValue += annualContribution;
-    }
-    
     // 1. SIMULATE ECONOMIC CONDITIONS FOR THE YEAR
     // Generate independent random numbers for each factor
     const zStock = generateStandardNormal();
@@ -122,35 +118,30 @@ const runSimulationPath = ({
       inBullMarket = true;
       yearsInCurrentMarket = 1;
     }
-
-    // Equities drive the behavioral cycle
-    const regimeAdjustment = inBullMarket ? 0.02 : -0.02;
+    
+    // Equities drive the behavioral cycle - much smaller adjustments
+    const regimeAdjustment = inBullMarket ? 0.005 : -0.005; // Reduced from ±2% to ±0.5%
     let stockReturnDrift = stockDrift + regimeAdjustment;
-    let stockReturn; // Declare stockReturn before conditional assignment
+    let stockReturn;
 
-    // --- ENHANCED BEHAVIORAL AND RECOVERY LOGIC ---
+    // Generate base stock return using log-normal distribution
+    stockReturn = Math.exp(stockReturnDrift + stockParams.stdDev * zStock) - 1;
 
-    // 1. Post-Crash Recovery: If last year was a major loss, increase the odds of a bounce.
-    if (lastStockReturn < -0.20) {
-      stockReturnDrift += 0.05; // Add 5% to the drift for recovery
-    }
+    // --- MINIMAL BEHAVIORAL ADJUSTMENTS ---
 
-    // 2. Long-Term Resilience: If it's been a while since a good year, force a recovery.
-    yearsSinceStrongRecovery++;
-    if (yearsSinceStrongRecovery > 6 && Math.random() < 0.7) {
-      stockReturn = 0.15 + Math.random() * 0.20; // Force a strong recovery of 15-35%
-      yearsSinceStrongRecovery = 0;
-    } else {
-      stockReturn = Math.exp(stockReturnDrift + stockParams.stdDev * zStock) - 1;
-    }
-
-    // 3. Refined Crash Modeling: Reduce chance of back-to-back crashes.
-    const crashProbability = lastStockReturn < -0.25 ? 0.005 : 0.015; // Lower chance after a crash
+    // 1. Crash modeling: Small probability of severe losses
+    const crashProbability = lastStockReturn < -0.25 ? 0.003 : 0.008; // Reduced frequency
     if (Math.random() < crashProbability) {
-      stockReturn = -0.30 - Math.random() * 0.20; // -30% to -50%
+      stockReturn = -0.25 - Math.random() * 0.15; // -25% to -40% (less severe)
     }
     
-    // Update behavioral trackers based on the final stock return for the year
+    // 2. Prevent unrealistic consecutive crashes (but don't artificially boost returns)
+    if (consecutiveNegativeEquityYears > 2 && stockReturn < -0.20) {
+      stockReturn = -0.05 - Math.random() * 0.10; // Small loss instead of severe loss
+      consecutiveNegativeEquityYears = 0;
+    }
+    
+    // Update behavioral trackers
     if (stockReturn < -0.15) {
       consecutiveNegativeEquityYears++;
     } else {
@@ -159,14 +150,10 @@ const runSimulationPath = ({
     if (stockReturn > 0.20) {
       yearsSinceStrongRecovery = 0;
     }
-    
-    // 4. Circuit Breaker: Prevent more than 2 consecutive severe loss years.
-    if (consecutiveNegativeEquityYears > 2 && stockReturn < 0) {
-      stockReturn = Math.random() * 0.05; // Moderate to a small gain/loss
-      consecutiveNegativeEquityYears = 0;
-    }
+    yearsSinceStrongRecovery++;
 
-    stockReturn = Math.max(-0.50, stockReturn); // Cap losses at 50% for a single year
+    // Cap extreme losses at 50% for a single year
+    stockReturn = Math.max(-0.50, stockReturn);
 
     // Bond return is based on its real return + inflation, adjusted for inflation shocks
     const expectedBondReturn = bondParams.meanReal + currentInflation;
@@ -177,11 +164,18 @@ const runSimulationPath = ({
     const inflationSurprise = currentInflation - inflationParams.mean;
     bondReturn += inflationSurprise * bondParams.inflationSensitivity;
 
-    // 3. CALCULATE PORTFOLIO RETURN
+    // 3. CALCULATE PORTFOLIO RETURN (on existing balance only)
     const portfolioReturn = (stockReturn * allocation.stocks) + (bondReturn * allocation.bonds);
 
-    // Update portfolio value
+    // Apply investment returns to current portfolio value
     currentNominalValue *= (1 + portfolioReturn);
+    
+    // THEN add annual contribution at the END of the year (growing over time)
+    // This ensures contributions don't affect the return calculation
+    if (annualContribution > 0) {
+      const growingContribution = annualContribution * Math.pow(1 + savingsGrowthRate, year - 1);
+      currentNominalValue += growingContribution;
+    }
     
     // Store this year's results
     yearlyReturns.push({ portfolio: portfolioReturn, stock: stockReturn, bond: bondReturn, inflation: currentInflation });
@@ -197,12 +191,19 @@ const runSimulationPath = ({
     nominalYearlyValues.push(currentNominalValue);
     realYearlyValues.push(realValue);
   }
-
+  
   // Final calculations for the path
   const finalNominalValue = nominalYearlyValues[years];
   const finalRealValue = realYearlyValues[years];
-  const nominalCAGR = Math.pow(finalNominalValue / initialInvestment, 1 / years) - 1;
-  const realCAGR = Math.pow(finalRealValue / initialInvestment, 1 / years) - 1;
+  
+  // Calculate CAGR based on investment returns only (excluding contribution effects)
+  // This gives us the true portfolio performance CAGR
+  const totalPortfolioReturn = yearlyReturns.reduce((product, yearData) => product * (1 + yearData.portfolio), 1);
+  const realCAGR = Math.pow(totalPortfolioReturn, 1 / years) - 1;
+  
+  // For nominal CAGR, we need to account for inflation in the returns
+  const totalInflationAdjustment = yearlyReturns.reduce((product, yearData) => product * (1 + yearData.inflation), 1);
+  const nominalCAGR = Math.pow(totalPortfolioReturn * totalInflationAdjustment, 1 / years) - 1;
 
   // Apply a guardrail for long-term returns to prevent unrealistic scenarios
   if (years >= 20 && realCAGR < HISTORICAL_VALIDATION.minLongTermPortfolioReturn) {
@@ -219,7 +220,7 @@ const runSimulationPath = ({
       yearlyReturns: yearlyReturns.map(r => r.portfolio),
     };
   }
-
+  
   return {
     finalNominalValue,
     finalRealValue,
@@ -242,6 +243,7 @@ export const runMonteCarloSimulation = ({
   initialInvestment = 100000,
   years = 30,
   annualContribution = 0,
+  savingsGrowthRate = 0,
   riskProfile = 'balanced',
   numberOfSimulations = 10000,
   inflationRate, // This is now ignored, as inflation is simulated dynamically
@@ -258,6 +260,7 @@ export const runMonteCarloSimulation = ({
       initialInvestment,
       years,
       annualContribution,
+      savingsGrowthRate,
       allocation,
     });
     allSimulations.push(path);
@@ -266,7 +269,7 @@ export const runMonteCarloSimulation = ({
   // --- AGGREGATE RESULTS ---
   const nominalFinalValueSorted = [...allSimulations].sort((a, b) => a.finalNominalValue - b.finalNominalValue);
   const drawdownSorted = [...allSimulations].sort((a, b) => a.maxDrawdown - b.maxDrawdown);
-
+  
   // Calculate percentile paths
   const p1Index = Math.max(0, Math.floor(numberOfSimulations * 0.01) - 1);
   const p10Index = Math.max(0, Math.floor(numberOfSimulations * 0.1) - 1);
@@ -297,6 +300,16 @@ export const runMonteCarloSimulation = ({
   for (let i = 0; i < numberOfSimulations; i += pathStep) {
     allPaths.push(allSimulations[i].realYearlyValues);
   }
+  
+  // Generate time series data for the median case for charts
+  const timeSeriesData = [];
+  for (let year = 0; year <= years; year++) {
+    timeSeriesData.push({
+      year: year,
+      portfolioValue: medianCase.realYearlyValues[year] || 0,
+      age: 25 + year // Assume starting age of 25
+    });
+  }
 
   // --- PREPARE FINAL RESULTS OBJECT ---
   return {
@@ -311,6 +324,7 @@ export const runMonteCarloSimulation = ({
     
     worstDrawdownPath: drawdownSorted[0].nominalYearlyValues,
     allPaths,
+    timeSeriesData,
     
     yearlyReturns: {
       worst: p1Case.yearlyReturns,

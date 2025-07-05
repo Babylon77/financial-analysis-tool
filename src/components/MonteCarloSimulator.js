@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { runMonteCarloSimulation, RISK_PROFILES } from '../utils/monteCarloSimulation';
 import MonteCarloChart from './MonteCarloChart';
 import MonteCarloResults from './MonteCarloResults';
+import SavingsGrowthChart from './SavingsGrowthChart';
 import { formatCurrency } from '../utils/formatters';
 
 const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
@@ -19,6 +20,7 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
     initialInvestment: initialInvestment,
     years: 30,
       annualContribution: 50000,
+      savingsGrowthRate: 3.0,
     riskProfile: 'balanced',
       numberOfSimulations: 10000,
     inflationRate: 2.5
@@ -75,7 +77,7 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
     
     // Handle numeric inputs
     if (['initialInvestment', 'years', 'annualContribution', 'numberOfSimulations', 
-         'inflationRate'].includes(name)) {
+         'inflationRate', 'savingsGrowthRate'].includes(name)) {
       setConfigValues({
         ...configValues,
         [name]: parseFloat(value) || 0
@@ -98,6 +100,7 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
           initialInvestment: configValues.initialInvestment,
           years: configValues.years,
           annualContribution: configValues.annualContribution,
+          savingsGrowthRate: configValues.savingsGrowthRate / 100,
           riskProfile: configValues.riskProfile,
           numberOfSimulations: configValues.numberOfSimulations,
           inflationRate: configValues.inflationRate / 100
@@ -169,7 +172,27 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
               />
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Amount added to your portfolio annually
+              Starting annual contribution amount
+            </p>
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Savings Growth Rate (% per year)
+            </label>
+            <input
+              type="number"
+              name="savingsGrowthRate"
+              value={configValues.savingsGrowthRate}
+              onChange={handleInputChange}
+              className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              placeholder="3.0"
+              step="0.1"
+              min="0"
+              max="15"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Annual increase in savings rate above inflation (career progression, raises, etc.)
             </p>
           </div>
           
@@ -297,6 +320,18 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
           
           <div className="mt-6">
             <MonteCarloResults simulationData={simulationResults} />
+          </div>
+          
+          <div className="mt-6">
+            <SavingsGrowthChart 
+              timeSeriesData={simulationResults.timeSeriesData}
+              initialSavings={configValues.annualContribution}
+              savingsGrowthRate={configValues.savingsGrowthRate}
+              spouse1RetirementAge={configValues.years + 25} // Assume retirement at end of investment period
+              spouse2RetirementAge={configValues.years + 25}
+              spouse1Age={25} // Assume starting at age 25
+              spouse2Age={25} // Assume starting at age 25
+            />
           </div>
           
           {showValidation && (

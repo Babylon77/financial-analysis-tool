@@ -4,6 +4,7 @@ import {
   LineChart, Line
 } from 'recharts';
 import MonteCarloSimulator from '../components/MonteCarloSimulator';
+import SavingsGrowthChart from '../components/SavingsGrowthChart';
 import { runMonteCarloSimulation } from '../utils/monteCarloSimulation';
 import { formatCurrency, formatPercent } from '../utils/formatters';
 
@@ -89,6 +90,7 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
         return {
           currentNetWorth: parsed.initialInvestment || 4200000,
           annualSavings: parsed.annualContribution || 50000,
+        savingsGrowthRate: parsed.savingsGrowthRate || 3,
           expectedReturn: simulationResults?.medianCAGR ? 
             parseFloat((simulationResults.medianCAGR * 100).toFixed(2)) :
             (simulationResults?.avgAnnualReturn ? parseFloat((simulationResults.avgAnnualReturn * 100).toFixed(2)) : 7),
@@ -122,6 +124,7 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
     return {
       currentNetWorth: 4200000,
       annualSavings: 50000,
+      savingsGrowthRate: 3,
       expectedReturn: getRiskProfileReturn('balanced'),
       riskProfile: 'balanced',
       monteCarloResults: null,
@@ -179,7 +182,7 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
       // Current Financial Position (from Asset Allocation Planner)
       currentNetWorth: assetData.currentNetWorth,
       annualSavings: assetData.annualSavings,
-      savingsGrowthRate: 3,
+      savingsGrowthRate: assetData.savingsGrowthRate || 3,
       expectedReturn: assetData.expectedReturn,
       riskProfile: assetData.riskProfile,
       
@@ -397,81 +400,235 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
   // Rerun Monte Carlo simulation with current asset allocation parameters
   const rerunMonteCarloSimulation = () => {
     setIsRerunningMonteCarlo(true);
-    // Use a timeout to allow the UI to update and show the loading spinner
+    
+    // Short timeout to allow UI to update with loading state
     setTimeout(() => {
-        const { currentNetWorth, riskProfile, endAge, spouse1CurrentAge } = scenarioData;
-        if (!currentNetWorth) {
-            console.error("Cannot run simulation without current net worth.");
-            setIsRerunningMonteCarlo(false);
-            return;
+      try {
+        // Get current asset allocation parameters
+        const savedData = sessionStorage.getItem('assetAllocationComplete');
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          
+          // Calculate the CORRECT time horizon for retirement planning
+          const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
+          const retirementYears = selectedHeatmapAge - currentAge;
+          
+          // Run new Monte Carlo simulation with RETIREMENT-SPECIFIC parameters
+          // Note: inflationRate in sessionStorage is already stored as decimal (e.g., 0.025 for 2.5%)
+          // but if it's stored as percentage, we need to convert it
+          const inflationRate = parsed.inflationRate > 1 ? parsed.inflationRate / 100 : parsed.inflationRate || 0.025;
+          
+          console.log('🔄 Rerunning Monte Carlo with RETIREMENT-SPECIFIC parameters:', {
+            initialInvestment: scenarioData.currentNetWorth,
+            years: retirementYears,
+            annualContribution: scenarioData.annualSavings,
+            riskProfile: parsed.riskProfile || 'balanced',
+            numberOfSimulations: parsed.numberOfSimulations || 10000,
+            inflationRate: inflationRate,
+            inflationRatePercent: (inflationRate * 100).toFixed(1) + '%',
+            note: `Using retirement timeline (${retirementYears} years) instead of original Asset Allocation timeline (${parsed.years} years)`
+          });
+          
+          const newResults = runMonteCarloSimulation({
+            initialInvestment: scenarioData.currentNetWorth,
+            years: retirementYears,
+            annualContribution: scenarioData.annualSavings,
+            savingsGrowthRate: scenarioData.savingsGrowthRate / 100,
+            riskProfile: parsed.riskProfile || 'balanced',
+            numberOfSimulations: parsed.numberOfSimulations || 10000,
+            inflationRate: inflationRate
+          });
+          
+          // Update stored data with new RETIREMENT-SPECIFIC simulation results
+          const updatedData = {
+            ...parsed,
+            // Update parameters to reflect retirement-specific simulation
+            initialInvestment: scenarioData.currentNetWorth,
+            years: retirementYears,
+            annualContribution: scenarioData.annualSavings,
+            simulationResults: {
+              ...newResults,
+              lastUpdated: Date.now(),
+              retirementSpecific: true,
+              retirementYears: retirementYears
+            },
+            lastUpdated: Date.now()
+          };
+          sessionStorage.setItem('assetAllocationComplete', JSON.stringify(updatedData));
+          
+          // Force reload asset allocation data with new results
+          const newAssetData = loadAssetAllocationData();
+          setAssetData(newAssetData); // Update assetData state with new Monte Carlo results
+          setScenarioData(prev => ({
+            ...prev,
+            currentNetWorth: newAssetData.currentNetWorth,
+            annualSavings: newAssetData.annualSavings,
+            expectedReturn: newAssetData.expectedReturn,
+            riskProfile: newAssetData.riskProfile
+          }));
+          
+          // Clear heatmap and automatically regenerate with new Monte Carlo data
+          setHeatmapData([]);
+          
+          // Auto-regenerate heatmap with new data after a short delay
+          setTimeout(() => {
+            generateHeatmap();
+          }, 200);
+          
+        } else {
+          console.warn('No asset allocation data found - cannot rerun simulation');
         }
-        const years = endAge - spouse1CurrentAge;
-
-        // For the main simulation, we assume contributions continue until the selected retirement age
-        const { spouse1RetirementAge, spouse2RetirementAge, annualSavings } = scenarioData;
-        const spouse1ContributionYears = spouse1RetirementAge - spouse1CurrentAge;
-        const spouse2ContributionYears = spouse2RetirementAge - scenarioData.spouse2CurrentAge;
-        
-        const annualContributions = Array.from({ length: years }, (_, i) => {
-            let contribution = 0;
-            if (i < spouse1ContributionYears) contribution += annualSavings / 2;
-            if (i < spouse2ContributionYears) contribution += annualSavings / 2;
-            return contribution;
-        });
-
-        const results = runMonteCarloSimulation({
-            initialInvestment: currentNetWorth,
-            years: years,
-            annualContributions: annualContributions,
-            riskProfile: riskProfile,
-            numberOfSimulations: 5000, // Use a reasonable number for performance
-        });
-        
-        // Update assetData with the new results
-        setAssetData(prev => ({ ...prev, monteCarloResults: results }));
+      } catch (error) {
+        console.error("Error rerunning Monte Carlo simulation:", error);
+      } finally {
         setIsRerunningMonteCarlo(false);
+      }
     }, 100);
   };
 
-  // Main calculation function for both time series and heatmap
+  // Calculate retirement scenario with proper Monte Carlo integration
   const calculateRetirementScenario = (spouse1RetAge, spouse2RetAge) => {
-    const {
-      spouse1CurrentAge,
-      spouse2CurrentAge,
-      currentNetWorth,
-      annualSavings,
-      riskProfile,
-      endAge
-    } = scenarioData;
-
-    const years = endAge - Math.min(spouse1CurrentAge, spouse2CurrentAge);
+    const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
+    const totalYears = selectedHeatmapAge - currentAge;
     
-    // Generate the dynamic contributions array
-    const spouse1ContributionYears = spouse1RetAge - spouse1CurrentAge;
-    const spouse2ContributionYears = spouse2RetAge - spouse2CurrentAge;
-
-    const annualContributions = Array.from({ length: years }, (_, i) => {
-        const currentYearAbsolute = Math.min(spouse1CurrentAge, spouse2CurrentAge) + i;
-        let contribution = 0;
-        if (currentYearAbsolute < spouse1RetAge) {
-            contribution += annualSavings / 2; // Assuming savings are split
+    // Debug logging for parameter comparison (only for first calculation)
+    if (spouse1RetAge === scenarioData.spouse1RetirementAge && spouse2RetAge === scenarioData.spouse2RetirementAge) {
+      console.log('🎯 Retirement Calculation Debug:', {
+        retirementParams: {
+      currentAge,
+          selectedHeatmapAge,
+          totalYears,
+          spouse1RetAge,
+          spouse2RetAge,
+          currentNetWorth: scenarioData.currentNetWorth,
+          annualSavings: scenarioData.annualSavings,
+          expectedReturn: scenarioData.expectedReturn
+        },
+        monteCarloOriginalParams: assetData.originalParams,
+        parameterComparison: {
+          netWorthMatch: assetData.originalParams?.initialInvestment === scenarioData.currentNetWorth,
+          savingsMatch: assetData.originalParams?.annualContribution === scenarioData.annualSavings,
+          yearsMatch: assetData.originalParams?.years === totalYears,
+          riskProfileMatch: assetData.originalParams?.riskProfile === scenarioData.riskProfile
         }
-        if (currentYearAbsolute < spouse2RetAge) {
-            contribution += annualSavings / 2;
-        }
-        return contribution;
-    });
+      });
+    }
     
-    // Run the simulation with dynamic contributions
-    const simulationResults = runMonteCarloSimulation({
-      initialInvestment: currentNetWorth,
-      years,
-      annualContributions,
-      riskProfile,
-      numberOfSimulations: 2000, // Lower number for heatmap performance
-    });
 
-    return simulationResults;
+    
+    // Get actual return sequence from Monte Carlo simulation
+    let returnSequence = [];
+    if (assetData.monteCarloResults && assetData.monteCarloResults.yearlyReturns) {
+      const mcReturns = assetData.monteCarloResults.yearlyReturns;
+      
+      // Map scenario to available Monte Carlo percentile paths with proper fallbacks
+      if (monteCarloScenario === 'best') {
+        returnSequence = mcReturns.p99 || mcReturns.best || mcReturns.p90 || mcReturns.median || [];
+      } else if (monteCarloScenario === 'optimistic') {
+        returnSequence = mcReturns.p90 || mcReturns.optimistic || mcReturns.best || mcReturns.median || [];
+      } else if (monteCarloScenario === 'median') {
+        returnSequence = mcReturns.median || [];
+      } else if (monteCarloScenario === 'pessimistic') {
+        returnSequence = mcReturns.p10 || mcReturns.median || [];
+      } else if (monteCarloScenario === 'worst') {
+        // Use 1st percentile path for worst; fall back to absolute worst if p1 missing
+        returnSequence = mcReturns.p1 || mcReturns.worst || mcReturns.median || [];
+      } else {
+        returnSequence = mcReturns.median || [];
+      }
+      
+      // Debug only first instance of length mismatch to avoid spam
+      if (returnSequence.length !== totalYears && spouse1RetAge === scenarioData.spouse1RetirementAge && spouse2RetAge === scenarioData.spouse2RetirementAge && monteCarloScenario === 'median') {
+        console.log('📊 Return Sequence Length Mismatch (showing once):', {
+          sequenceLength: returnSequence.length,
+          expectedLength: totalYears,
+          note: 'This indicates a year counting mismatch between Monte Carlo and retirement calculation'
+        });
+      }
+    }
+    
+    // If no Monte Carlo data or sequence too short, fallback to constant return
+    if (returnSequence.length === 0) {
+      const constantReturn = scenarioData.expectedReturn / 100;
+      returnSequence = Array(totalYears + 1).fill(constantReturn);
+      console.log('⚠️ Using fallback constant return:', (constantReturn * 100).toFixed(2) + '%');
+    } else if (returnSequence.length !== totalYears) {
+      // Length mismatch - handle silently to avoid spam
+      
+      // If sequence is shorter, extend it with the last return
+      if (returnSequence.length < totalYears) {
+        const lastReturn = returnSequence[returnSequence.length - 1] || (scenarioData.expectedReturn / 100);
+        while (returnSequence.length < totalYears) {
+          returnSequence.push(lastReturn);
+        }
+      }
+      // If sequence is longer, truncate it
+      else {
+        returnSequence = returnSequence.slice(0, totalYears);
+      }
+    }
+    
+    let portfolioValue = scenarioData.currentNetWorth;
+    
+    // Year-by-year calculation using actual return sequence
+    for (let year = 0; year <= totalYears; year++) {
+      const age = currentAge + year;
+      
+      if (year === 0) {
+        // Skip calculation for year 0, just use starting value
+        continue;
+      }
+      
+      // Calculate savings for this year (growing over time)
+      let savingsThisYear = scenarioData.annualSavings * Math.pow(1 + (scenarioData.savingsGrowthRate / 100), year - 1);
+      const spouse1Retired = age >= spouse1RetAge;
+      const spouse2Retired = age >= spouse2RetAge;
+      
+      if (spouse1Retired && spouse2Retired) {
+        savingsThisYear = 0; // Both retired, no more savings
+      } else if (spouse1Retired || spouse2Retired) {
+        savingsThisYear = savingsThisYear * 0.5; // One retired, reduced savings
+      }
+      
+      // Apply drawdown phases
+      let netSavings = savingsThisYear;
+      scenarioData.drawdownPhases.forEach(phase => {
+        if (age >= phase.startAge && age <= phase.endAge) {
+          netSavings -= phase.annualAmount;
+        }
+      });
+      
+
+      
+      // Get return for this specific year from Monte Carlo sequence
+      const yearIndex = Math.min(year - 1, returnSequence.length - 1);
+      const thisYearReturn = returnSequence[yearIndex] || (scenarioData.expectedReturn / 100);
+      
+      // Apply growth and add net savings
+      portfolioValue = portfolioValue * (1 + thisYearReturn) + netSavings;
+    }
+    
+
+    
+    // Debug final result (only for median scenario of default retirement ages to avoid spam)
+    if (spouse1RetAge === scenarioData.spouse1RetirementAge && spouse2RetAge === scenarioData.spouse2RetirementAge && monteCarloScenario === 'median') {
+      console.log('💰 Final Portfolio Calculation (median scenario):', {
+        finalValue: portfolioValue,
+        formattedValue: formatCurrency(portfolioValue),
+        startingValue: scenarioData.currentNetWorth,
+        totalYears: totalYears,
+        avgAnnualReturn: returnSequence.length > 0 ? (returnSequence.reduce((a, b) => a + b, 0) / returnSequence.length * 100).toFixed(2) + '%' : 'N/A'
+      });
+    }
+    
+    return {
+      portfolioAtFirstRetirement: portfolioValue,
+      portfolioAtTargetAge: portfolioValue,
+      firstRetirementAge: Math.min(spouse1RetAge, spouse2RetAge),
+      lastRetirementAge: Math.max(spouse1RetAge, spouse2RetAge),
+      isViable: portfolioValue > 0,
+      returnSequenceUsed: returnSequence.slice(0, totalYears)
+    };
   };
 
   // Generate heatmap data
@@ -503,10 +660,10 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
           heatmapResults.push({
             spouse1RetirementAge: s1Age,
             spouse2RetirementAge: s2Age,
-            portfolioValue: result.medianPath[selectedHeatmapAge - Math.min(s1Age, s2Age)],
-            isViable: result.medianPath.length > selectedHeatmapAge - Math.min(s1Age, s2Age) && selectedHeatmapAge - Math.min(s1Age, s2Age) >= 0,
-            firstRetirementAge: Math.min(s1Age, s2Age),
-            lastRetirementAge: Math.max(s1Age, s2Age)
+            portfolioValue: result.portfolioAtTargetAge,
+            isViable: result.isViable,
+            firstRetirementAge: result.firstRetirementAge,
+            lastRetirementAge: result.lastRetirementAge
           });
         });
       });
@@ -517,44 +674,147 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
   }
 
   const getHeatmapColor = (value) => {
-    if (value < 2000000) return '#ef4444'; // red-500
-    if (value < 10000000) return '#22c55e'; // green-500
-    return '#10b981'; // green-600
+    const currentNetWorth = scenarioData.currentNetWorth;
+    if (value < currentNetWorth * 0.8) return '#EF4444'; // Red - significant loss
+    if (value < currentNetWorth) return '#F97316'; // Orange - some loss
+    if (value < currentNetWorth * 1.5) return '#EAB308'; // Yellow - minimal gain
+    if (value < currentNetWorth * 2.5) return '#84CC16'; // Lime - good growth
+    return '#22C55E'; // Green - excellent growth
   };
 
   // Generate time series data for all Monte Carlo scenarios
   const generateTimeSeriesData = () => {
-    if (!assetData.monteCarloResults) {
-        return null; // Return null instead of an empty array to signify missing data
-    }
-
-    const { spouse1RetirementAge, spouse2RetirementAge } = scenarioData;
-    const results = calculateRetirementScenario(spouse1RetirementAge, spouse2RetirementAge);
-
-    if (!results || !results.medianPath) {
-        console.error("Scenario calculation failed to produce valid results.");
-        return null; // Handle potential failure in scenario calculation
-    }
-
-    const timeSeries = results.medianPath.map((value, index) => {
-      const year = scenarioData.spouse1CurrentAge + index;
-      return {
-        age: year,
-        year,
-        best: results.bestPath[index] || value,
-        optimistic: results.optimisticPath[index] || value,
-        median: results.medianPath[index] || value,
-        pessimistic: results.pessimisticPath[index] || value,
-        worst: results.worstPath[index] || value
+    const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
+    const analysisAge = selectedHeatmapAge;
+    const yearsToAnalysis = analysisAge - currentAge;
+    
+    if (yearsToAnalysis <= 0) return [];
+    
+    const timeSeriesData = [];
+    
+    // Get actual return sequences from Monte Carlo simulation
+    let returnSequences = {};
+    if (assetData.monteCarloResults && assetData.monteCarloResults.yearlyReturns) {
+      const mcReturns = assetData.monteCarloResults.yearlyReturns;
+      
+      // Map 4 retirement scenarios to available Monte Carlo percentile paths with proper fallbacks
+      returnSequences = {
+        best: mcReturns.p99 || mcReturns.best || mcReturns.p90 || mcReturns.median || [],   // Top 1 %
+        optimistic: mcReturns.p90 || mcReturns.optimistic || mcReturns.best || mcReturns.median || [], // 90th %
+        median: mcReturns.median || [],
+        pessimistic: mcReturns.p10 || mcReturns.median || [],
+        worst: mcReturns.p1 || mcReturns.worst || mcReturns.median || []
       };
+    }
+    
+    // Fallback to constant returns if no Monte Carlo data
+    const fallbackReturn = scenarioData.expectedReturn / 100;
+    
+    // Ensure we have all required scenarios with correct length
+    const requiredScenarios = ['best', 'optimistic', 'median', 'pessimistic', 'worst'];
+    requiredScenarios.forEach(scenario => {
+      if (!returnSequences[scenario] || returnSequences[scenario].length === 0) {
+        returnSequences[scenario] = Array(yearsToAnalysis).fill(fallbackReturn);
+      } else if (returnSequences[scenario].length > yearsToAnalysis) {
+        // Trim if too long
+        returnSequences[scenario] = returnSequences[scenario].slice(0, yearsToAnalysis);
+      } else if (returnSequences[scenario].length < yearsToAnalysis) {
+        // Extend if too short
+        const lastReturn = returnSequences[scenario][returnSequences[scenario].length - 1] || fallbackReturn;
+        while (returnSequences[scenario].length < yearsToAnalysis) {
+          returnSequences[scenario].push(lastReturn);
+        }
+      }
     });
     
-    return timeSeries;
+    // Debug logging only for critical issues
+    const hasMonteCarloData = !!(assetData.monteCarloResults && assetData.monteCarloResults.yearlyReturns);
+    const lengthMismatch = Object.values(returnSequences).some(seq => seq.length !== yearsToAnalysis);
+    
+    if (!hasMonteCarloData && yearsToAnalysis > 0) {
+      console.log('📊 Time Series: Using fallback constant returns (no Monte Carlo data available)');
+    } else if (lengthMismatch) {
+      console.log('📊 Time Series: Length mismatch detected, using available data with adjustments');
+    } else if (hasMonteCarloData) {
+      // Validate percentile ordering for first year returns
+      const firstYearReturns = {
+        worst: returnSequences.worst[0] || 0,
+        pessimistic: returnSequences.pessimistic[0] || 0,
+        median: returnSequences.median[0] || 0,
+        optimistic: returnSequences.optimistic[0] || 0,
+        best: returnSequences.best[0] || 0
+      };
+      
+      // Check if ordering makes sense (worst < pessimistic < median < optimistic < best)
+      const isOrdered = firstYearReturns.worst <= firstYearReturns.pessimistic && 
+                       firstYearReturns.pessimistic <= firstYearReturns.median && 
+                       firstYearReturns.median <= firstYearReturns.optimistic &&
+                       firstYearReturns.optimistic <= firstYearReturns.best;
+      
+      if (!isOrdered) {
+        console.log('⚠️ Percentile ordering issue detected in first year returns:', firstYearReturns);
+      }
+    }
+    
+
+    
+    for (let year = 0; year <= yearsToAnalysis; year++) {
+      const age = currentAge + year;
+      
+      let portfolioValues = {};
+      
+      if (year === 0) {
+        // Starting values
+        portfolioValues = {
+          best: scenarioData.currentNetWorth,
+          optimistic: scenarioData.currentNetWorth,
+          median: scenarioData.currentNetWorth,
+          pessimistic: scenarioData.currentNetWorth,
+          worst: scenarioData.currentNetWorth
+        };
+      } else {
+        // Calculate savings for this year (EXACTLY same logic as heatmap)
+        let savingsThisYear = scenarioData.annualSavings * Math.pow(1 + (scenarioData.savingsGrowthRate / 100), year - 1);
+        const spouse1Retired = age >= scenarioData.spouse1RetirementAge;
+        const spouse2Retired = age >= scenarioData.spouse2RetirementAge;
+        
+        if (spouse1Retired && spouse2Retired) {
+          savingsThisYear = 0; // Both retired, no more savings
+        } else if (spouse1Retired || spouse2Retired) {
+          savingsThisYear = savingsThisYear * 0.5; // One retired, reduced savings
+        }
+        
+        // Apply drawdown phases (EXACTLY same logic as heatmap)
+        let netSavings = savingsThisYear;
+        scenarioData.drawdownPhases.forEach(phase => {
+          if (age >= phase.startAge && age <= phase.endAge) {
+            netSavings -= phase.annualAmount;
+          }
+        });
+        
+        const previousData = timeSeriesData[year - 1];
+        
+        // Calculate each scenario using actual Monte Carlo return sequences
+        Object.keys(returnSequences).forEach(scenario => {
+          const prevValue = previousData[scenario];
+          const yearIndex = Math.min(year - 1, returnSequences[scenario].length - 1);
+          const thisYearReturn = returnSequences[scenario][yearIndex] || fallbackReturn;
+          portfolioValues[scenario] = prevValue * (1 + thisYearReturn) + netSavings;
+        });
+      }
+      
+      timeSeriesData.push({
+        age,
+        year,
+        ...portfolioValues
+      });
+    }
+    
+    return timeSeriesData;
   };
 
   const timeSeriesData = generateTimeSeriesData();
-  const [activeMetric, setActiveMetric] = useState('portfolioValue');
-
+  
   return (
     <div className="max-w-full mx-auto px-4">
       <div className="mb-6">
@@ -651,6 +911,17 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
                       onChange={(e) => handleInputChange('annualSavings', parseInt(e.target.value))}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Savings Growth Rate (%/year)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={scenarioData.savingsGrowthRate}
+                      onChange={(e) => handleInputChange('savingsGrowthRate', parseFloat(e.target.value))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Annual increase in savings above inflation</p>
                   </div>
             </div>
             
@@ -926,44 +1197,103 @@ const AdvancedRetirementPlanner = ({ setActiveTab }) => {
                 </div>
                 
                 {/* Time Series Chart */}
-                {!timeSeriesData ? (
-                  <div className="text-center p-8 my-6 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <h3 className="text-lg font-semibold text-yellow-800">Prerequisite Data Missing</h3>
-                    <p className="mt-2 text-md text-yellow-700">
-                      Please run the simulation on the <strong className="font-semibold">Asset Allocation Planner</strong> tab first to generate the time series analysis.
+                {timeSeriesData.length > 0 && (
+                  <div className="mb-6">
+                    <h5 className="text-base font-semibold text-gray-800 mb-3">Portfolio Progression Over Time</h5>
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+                        <LineChart 
+                          data={timeSeriesData}
+                          margin={{ top: 20, right: 30, left: 70, bottom: 70 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                          <XAxis 
+                            dataKey="age" 
+                            stroke="#6B7280"
+                            fontSize={12}
+                            label={{ value: 'Age', position: 'insideBottom', offset: -5, textAnchor: 'middle' }}
+                          />
+                          <YAxis 
+                            stroke="#6B7280"
+                            fontSize={12}
+                            tickFormatter={(value) => formatCurrency(value, { decimals: 1, compact: true })}
+                            label={{ value: 'Portfolio Value', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
+                          />
+                          <Tooltip 
+                            formatter={(value, name) => [formatCurrency(value, { decimals: 1, compact: true }), name]}
+                            labelFormatter={(age) => `Age ${age}`}
+                            contentStyle={{
+                              backgroundColor: 'white',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: '8px'
+                            }}
+                          />
+                          <Legend 
+                            verticalAlign="top" 
+                            height={36}
+                            wrapperStyle={{ paddingBottom: '20px' }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="best" 
+                            stroke="#16a34a" 
+                            strokeWidth={2}
+                            name="Best Case (Top 1%)"
+                            dot={false}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="optimistic" 
+                            stroke="#22C55E" 
+                            strokeWidth={2}
+                            name="Optimistic Case (90th %)"
+                            dot={false}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="median" 
+                            stroke="#3B82F6" 
+                            strokeWidth={2}
+                            name="Median Case (50th %)"
+                            dot={false}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="pessimistic" 
+                            stroke="#F59E0B" 
+                            strokeWidth={2}
+                            name="Pessimistic Case (10th %)"
+                            dot={false}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="worst" 
+                            stroke="#EF4444" 
+                            strokeWidth={2}
+                            name="Worst Case (1st %)"
+                            dot={false}
+                          />
+                        </LineChart>
+            </ResponsiveContainer>
+          </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      💡 This chart shows how your portfolio might grow under different market scenarios, including the effects of retirement timing and drawdown phases.
                     </p>
-                    <button
-                      onClick={() => setActiveTab('allocation')}
-                      className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                      Go to Asset Allocation Planner
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-8">
-                    <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">Retirement Scenario Analysis</h3>
-                    <div className="flex justify-center mb-4">
-                      <select value={activeMetric} onChange={(e) => setActiveMetric(e.target.value)} className="p-2 border rounded">
-                        <option value="portfolioValue">Portfolio Value</option>
-                        <option value="drawdown">Annual Drawdown</option>
-                        <option value="income">Annual Income</option>
-                      </select>
-                    </div>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <LineChart data={timeSeriesData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="year" />
-                        <YAxis tickFormatter={(value) => formatCurrency(value, true)} />
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
-                        <Legend />
-                        <Line type="monotone" dataKey={activeMetric} stroke="#8884d8" name={
-                          activeMetric === 'portfolioValue' ? 'Portfolio Value' :
-                          activeMetric === 'drawdown' ? 'Annual Drawdown' : 'Annual Income'
-                        } />
-                      </LineChart>
-                    </ResponsiveContainer>
                   </div>
                 )}
+                
+                {/* Savings Growth Chart */}
+                <div className="mb-6">
+                  <SavingsGrowthChart 
+                    timeSeriesData={timeSeriesData}
+                    initialSavings={scenarioData.annualSavings}
+                    savingsGrowthRate={scenarioData.savingsGrowthRate}
+                    spouse1RetirementAge={scenarioData.spouse1RetirementAge}
+                    spouse2RetirementAge={scenarioData.spouse2RetirementAge}
+                    spouse1Age={scenarioData.spouse1CurrentAge}
+                    spouse2Age={scenarioData.spouse2CurrentAge}
+                  />
+                </div>
                 
                 {/* Heatmap Section */}
                 <div className="mb-4">
