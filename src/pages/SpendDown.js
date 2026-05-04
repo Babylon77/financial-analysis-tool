@@ -428,6 +428,71 @@ export default function SpendDown() {
     return incomeByYear.reduce((s, v) => s + v, 0) / incomeByYear.length;
   }, [incomeByYear]);
 
+  const retirementPhases = useMemo(() => {
+    const ssAge = Math.ceil(ssClaimingAge);
+    const rmdAge = birthYear >= 1960 ? 75 : 73;
+    const p1Start = profile.pension1?.startAge;
+    const p2Start = profile.pension2?.startAge;
+    const p1Amount = profile.pension1?.annualAmount || 0;
+    const p2Amount = profile.pension2?.annualAmount || 0;
+    const ssAnnual = (profile.ss1 + profile.ss2) * 12;
+
+    const eventAges = new Set([ages.retirement]);
+    if (p1Amount > 0 && p1Start > ages.retirement && p1Start < ages.life) eventAges.add(p1Start);
+    if (p2Amount > 0 && p2Start > ages.retirement && p2Start < ages.life) eventAges.add(p2Start);
+    if (ssAnnual > 0 && ssAge > ages.retirement && ssAge < ages.life) eventAges.add(ssAge);
+    if (rmdAge > ages.retirement && rmdAge < ages.life) eventAges.add(rmdAge);
+
+    const sorted = [...eventAges].sort((a, b) => a - b);
+    sorted.push(ages.life);
+
+    const phases = [];
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const startAge = sorted[i];
+      const endAge = sorted[i + 1] - 1;
+      const startYear = startAge - ages.retirement;
+      const endYear = endAge - ages.retirement;
+      const years = endAge - startAge + 1;
+
+      const phaseIncomes = [];
+      for (let y = startYear; y <= endYear && y < incomeByYear.length; y++) {
+        phaseIncomes.push(incomeByYear[y]);
+      }
+      const avgIncome = phaseIncomes.length > 0 ? phaseIncomes.reduce((s, v) => s + v, 0) / phaseIncomes.length : 0;
+
+      const hasPension = (p1Amount > 0 && startAge >= (p1Start || 999)) || (p2Amount > 0 && startAge >= (p2Start || 999));
+      const hasSS = ssAnnual > 0 && startAge >= ssAge;
+      const isRmd = startAge >= rmdAge;
+      const pensionIncome = (p1Amount > 0 && startAge >= (p1Start || 999) ? p1Amount : 0) +
+        (p2Amount > 0 && startAge >= (p2Start || 999) ? p2Amount : 0);
+      const ssIncome = hasSS ? ssAnnual : 0;
+
+      let label;
+      if (i === 0 && !hasPension && !hasSS) label = 'Portfolio Only';
+      else if (isRmd) label = 'RMD Phase';
+      else {
+        const parts = [];
+        if (hasPension) parts.push('Pension');
+        if (hasSS) parts.push('Social Security');
+        label = parts.length > 0 ? parts.join(' + ') : 'Portfolio Only';
+      }
+
+      let trigger;
+      if (startAge === ages.retirement) trigger = 'Retirement begins';
+      else if (startAge === p1Start || startAge === p2Start) trigger = 'Pension starts';
+      else if (startAge === ssAge) trigger = 'Social Security begins';
+      else if (startAge === rmdAge) trigger = 'RMDs begin';
+
+      phases.push({
+        startAge, endAge, startYear, endYear, years,
+        avgIncome, label, trigger, hasPension, hasSS, isRmd,
+        pensionIncome, ssIncome,
+        incomeGap: Math.max(0, spending - avgIncome),
+      });
+    }
+    return phases;
+  }, [ages, ssClaimingAge, birthYear, profile, spending, incomeByYear]);
+
   const handleRunAnalysis = useCallback(() => {
     setComputing(true);
     setTimeout(() => {
@@ -475,6 +540,103 @@ export default function SpendDown() {
       optimistic: mcSequencesFull.optimistic.slice(retirementOffset),
     };
   }, [mcSequencesFull, retirementOffset]);
+
+  // ── Optimized Phased Withdrawal Plan ──
+  const optimizedPlan = useMemo(() => {
+    if (!analysisRun || !mcSequencesFull || retirementPhases.length === 0 || projectedPortfolio <= 0) return null;
+
+    const retSeqs = mcSequencesFull.allPaths.map(p => p.slice(retirementOffset));
+    const numPaths = retSeqs.length;
+    const pv = projectedPortfolio;
+
+    function simulate(phaseSpending) {
+      let survived = 0;
+      for (const seq of retSeqs) {
+        let balance = pv;
+        let alive = true;
+        for (let y = 0; y < retYears && y < seq.length; y++) {
+          const phaseIdx = retirementPhases.findIndex(p => y >= p.startYear && y <= p.endYear);
+          const target = phaseSpending[phaseIdx] ?? spending;
+          const income = incomeByYear[y] || 0;
+          const draw = Math.max(target - income, 0);
+          balance -= draw;
+          if (balance <= 0) { alive = false; break; }
+          balance *= (1 + seq[y]);
+        }
+        if (alive && balance > 0) survived++;
+      }
+      return survived / numPaths;
+    }
+
+    // Find max flat spending at 95% survival
+    let flatLo = 0, flatHi = pv * 0.12;
+    for (let i = 0; i < 20; i++) {
+      const mid = (flatLo + flatHi) / 2;
+      if (simulate(retirementPhases.map(() => mid)) >= 0.95) flatLo = mid; else flatHi = mid;
+    }
+    const maxFlatSpending = flatLo;
+
+    // Determine if user's target is sustainable
+    const userSurvival = simulate(retirementPhases.map(() => spending));
+    const userPlanSafe = userSurvival >= 0.95;
+    const baseSpending = userPlanSafe ? spending : maxFlatSpending;
+
+    // Find max Phase 1 spending with later phases at baseSpending
+    let earlyMax = baseSpending;
+    if (retirementPhases.length > 1) {
+      let eLo = baseSpending, eHi = baseSpending * 3;
+      for (let i = 0; i < 20; i++) {
+        const mid = (eLo + eHi) / 2;
+        const ps = retirementPhases.map((_, idx) => idx === 0 ? mid : baseSpending);
+        if (simulate(ps) >= 0.95) eLo = mid; else eHi = mid;
+      }
+      earlyMax = eLo;
+    }
+
+    // Strategy recommendation per phase
+    const recommendations = retirementPhases.map((phase, idx) => {
+      if (phase.isRmd) return { strategy: 'RMD-Based', reason: 'Required Minimum Distributions are mandatory from traditional accounts.' };
+      if (idx === 0 && phase.avgIncome < spending * 0.3) return { strategy: 'Guardrails (Guyton-Klinger)', reason: 'Adapts to market swings during high-draw bridge years. Cuts 10% in downturns, raises 10% in recoveries.' };
+      if (phase.avgIncome >= spending * 0.6) return { strategy: 'Variable Percentage (VPW)', reason: 'Income covers essentials — let portfolio withdrawals flex naturally with market performance.' };
+      if (phase.hasSS && !phase.isRmd) return { strategy: 'Vanguard Dynamic', reason: 'Stable spending with guardrails. SS covers base needs, portfolio supplements.' };
+      return { strategy: 'Vanguard Dynamic', reason: 'Smooths year-over-year spending changes while staying responsive to market conditions.' };
+    });
+
+    // Optimized spending per phase
+    const optimizedSpending = retirementPhases.map((_, idx) => idx === 0 ? earlyMax : baseSpending);
+    const optimizedSurvival = simulate(optimizedSpending);
+
+    // Year-by-year chart data for stacked income view
+    const chartData = [];
+    for (let y = 0; y < retYears; y++) {
+      const age = ages.retirement + y;
+      const phaseIdx = retirementPhases.findIndex(p => y >= p.startYear && y <= p.endYear);
+      const total = optimizedSpending[phaseIdx] || spending;
+      const phase = retirementPhases[phaseIdx];
+      const pension = phase?.pensionIncome || 0;
+      const ss = phase?.ssIncome || 0;
+      const draw = Math.max(total - pension - ss, 0);
+      chartData.push({ age, 'Portfolio Draw': draw, Pension: Math.min(pension, total - draw), 'Social Security': Math.min(ss, Math.max(0, total - draw - pension)) });
+    }
+
+    return {
+      phases: retirementPhases.map((phase, i) => ({
+        ...phase,
+        optimizedSpending: optimizedSpending[i],
+        portfolioDraw: Math.max(0, optimizedSpending[i] - phase.avgIncome),
+        drawRate: pv > 0 ? Math.max(0, optimizedSpending[i] - phase.avgIncome) / pv : 0,
+        recommendation: recommendations[i],
+      })),
+      maxFlatSpending,
+      maxEarlySpending: earlyMax,
+      earlyBonus: Math.max(0, earlyMax - baseSpending),
+      baseSpending,
+      userPlanSafe,
+      userSurvival,
+      optimizedSurvival,
+      chartData,
+    };
+  }, [analysisRun, mcSequencesFull, retirementPhases, retirementOffset, projectedPortfolio, spending, retYears, incomeByYear, ages.retirement]);
 
   // ── Section 2: Withdrawal Strategies (with MC return sequences) ──
   // MC engine produces real returns (above inflation), so inflationRate: 0 keeps
@@ -942,6 +1104,131 @@ export default function SpendDown() {
                   </ResponsiveContainer>
                 </div>
               </div>
+            )}
+
+            {/* Optimized Withdrawal Plan */}
+            {optimizedPlan && (
+              <>
+                <SectionHeading>Your Optimized Withdrawal Plan<InfoButton text="A personalized phased plan that maximizes early-retirement spending when you have the most energy, then scales down as pension and Social Security income kick in. Uses your 1,000 Monte Carlo simulations to find the maximum sustainable spending per phase at 95% survival." wide /></SectionHeading>
+                <div className="terminal-card p-5 mb-6">
+                  {/* Headline metrics */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-surface-elevated rounded p-3">
+                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Max Early Spending<InfoButton text="The most you can spend per year in the first phase of retirement (before your next income source starts) while maintaining 95% portfolio survival across all phases." /></p>
+                      <p className="text-terminal-green text-xl font-bold font-mono">{formatCurrency(optimizedPlan.maxEarlySpending)}<span className="text-xs text-txt-muted">/yr</span></p>
+                    </div>
+                    <div className="bg-surface-elevated rounded p-3">
+                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Safe Flat Spending</p>
+                      <p className="text-terminal-cyan text-xl font-bold font-mono">{formatCurrency(optimizedPlan.maxFlatSpending)}<span className="text-xs text-txt-muted">/yr</span></p>
+                    </div>
+                    <div className="bg-surface-elevated rounded p-3">
+                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Front-Loading Bonus<InfoButton text="How much MORE you can spend in early retirement vs. flat spending, because your income bridge (pension, SS) reduces portfolio draw in later phases. This 'bonus' is funded by the reduced portfolio dependency after income kicks in." wide /></p>
+                      <p className={`text-xl font-bold font-mono ${optimizedPlan.earlyBonus > 0 ? 'text-terminal-green' : 'text-txt-muted'}`}>
+                        {optimizedPlan.earlyBonus > 0 ? `+${formatCurrency(optimizedPlan.earlyBonus)}` : '$0'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-elevated rounded p-3">
+                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Plan Survival</p>
+                      <p className={`text-xl font-bold font-mono ${optimizedPlan.optimizedSurvival >= 0.95 ? 'text-terminal-green' : 'text-terminal-amber'}`}>
+                        {(optimizedPlan.optimizedSurvival * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+
+                  {!optimizedPlan.userPlanSafe && (
+                    <div className="mb-6 rounded border border-terminal-amber bg-amber-900/10 p-3">
+                      <p className="text-terminal-amber text-xs font-mono font-bold uppercase tracking-wider mb-1">Spending Target Exceeds Safe Rate</p>
+                      <p className="text-txt-secondary text-xs font-mono">
+                        Your target of {formatCurrency(spending)}/yr has only a {(optimizedPlan.userSurvival * 100).toFixed(0)}% survival rate.
+                        The plan below uses the safe maximum of {formatCurrency(optimizedPlan.maxFlatSpending)}/yr for later phases.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Phase cards */}
+                  <div className="space-y-3 mb-6">
+                    {optimizedPlan.phases.map((phase, i) => (
+                      <div key={i} className="rounded border border-surface-border bg-surface-elevated/50 p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-terminal-green flex items-center justify-center text-terminal-green text-xs font-mono font-bold mt-0.5">
+                            {i + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                              <div>
+                                <h4 className="text-terminal-green font-mono font-bold text-sm">{phase.label}</h4>
+                                <p className="text-txt-muted text-xs font-mono">
+                                  Age {phase.startAge}–{phase.endAge} ({phase.years} {phase.years === 1 ? 'year' : 'years'})
+                                  {phase.trigger && i > 0 && <span className="text-terminal-cyan ml-2">{phase.trigger}</span>}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-terminal-green text-lg font-bold font-mono">{formatCurrency(phase.optimizedSpending)}<span className="text-xs text-txt-muted">/yr</span></p>
+                                <p className="text-txt-muted text-[10px] font-mono">{formatCurrency(phase.optimizedSpending / 12)}/mo</p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3 mb-3 text-xs font-mono">
+                              <div>
+                                <span className="text-txt-muted">Guaranteed Income</span>
+                                <p className={phase.avgIncome > 0 ? 'text-terminal-cyan font-bold' : 'text-txt-muted'}>{phase.avgIncome > 0 ? formatCurrency(phase.avgIncome) : 'None'}</p>
+                              </div>
+                              <div>
+                                <span className="text-txt-muted">Portfolio Draw</span>
+                                <p className={phase.portfolioDraw > 0 ? 'text-terminal-amber font-bold' : 'text-terminal-green font-bold'}>{formatCurrency(phase.portfolioDraw)}</p>
+                              </div>
+                              <div>
+                                <span className="text-txt-muted">Draw Rate</span>
+                                <p className={`font-bold ${phase.drawRate > 0.05 ? 'text-terminal-red' : phase.drawRate > 0.04 ? 'text-terminal-amber' : 'text-terminal-green'}`}>
+                                  {(phase.drawRate * 100).toFixed(1)}%
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="rounded bg-[#0d1117] border border-surface-border/50 px-3 py-2">
+                              <p className="text-terminal-amber text-[10px] font-mono uppercase tracking-wider font-bold mb-0.5">Recommended: {phase.recommendation.strategy}</p>
+                              <p className="text-txt-secondary text-[11px] font-mono">{phase.recommendation.reason}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Income composition chart */}
+                  <h4 className="font-display font-semibold text-terminal-amber uppercase tracking-wider text-sm mb-3">
+                    Spending Composition by Age
+                  </h4>
+                  <p className="text-txt-secondary text-xs font-mono mb-3">
+                    How your spending is funded each year. Green = portfolio draw. As income sources activate, portfolio dependency drops.
+                  </p>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={optimizedPlan.chartData} stackOffset="none">
+                        <CartesianGrid stroke={GRID_STROKE} />
+                        <XAxis dataKey="age" tick={TICK_STYLE} label={{ value: 'Age', position: 'insideBottom', offset: -2, fill: '#8b949e' }} />
+                        <YAxis tick={TICK_STYLE} tickFormatter={v => formatCurrency(v, { compact: true })} />
+                        <Tooltip content={({ active, payload, label }) => {
+                          if (!active || !payload?.length) return null;
+                          const total = payload.reduce((s, p) => s + (p.value || 0), 0);
+                          return (
+                            <div style={TOOLTIP_STYLE} className="rounded p-2 text-xs font-mono">
+                              <p className="text-txt-secondary mb-1">Age {label} — Total: {formatCurrency(total)}</p>
+                              {payload.map((entry, i) => entry.value > 0 && (
+                                <p key={i} style={{ color: entry.color }}>{entry.name}: {formatCurrency(entry.value)}</p>
+                              ))}
+                            </div>
+                          );
+                        }} />
+                        <Legend wrapperStyle={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} />
+                        <Area type="stepAfter" dataKey="Portfolio Draw" stackId="1" stroke={CHART_GREEN} fill="rgba(0,255,65,0.2)" />
+                        <Area type="stepAfter" dataKey="Pension" stackId="1" stroke={CHART_AMBER} fill="rgba(255,176,0,0.2)" />
+                        <Area type="stepAfter" dataKey="Social Security" stackId="1" stroke={CHART_CYAN} fill="rgba(0,212,255,0.2)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Withdrawal Ordering Guide */}
