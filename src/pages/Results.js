@@ -11,6 +11,7 @@ import LtrAnalysis from '../components/realEstate/LtrAnalysis';
 import StrAnalysis from '../components/realEstate/StrAnalysis';
 import StrategyComparison from '../components/realEstate/StrategyComparison';
 import ModaAnalysis from '../components/realEstate/ModaAnalysis';
+import TutorialHints from '../components/TutorialHints';
 
 function Results() {
   const location = useLocation();
@@ -124,6 +125,7 @@ function Results() {
           </div>
         </div>
       </div>
+      <TutorialHints />
     </div>
   );
 }

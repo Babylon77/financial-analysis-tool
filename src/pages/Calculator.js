@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MoneyInput from '../components/MoneyInput';
 import PropertyComparison from '../components/PropertyComparison';
+import TutorialHints from '../components/TutorialHints';
 import { RENOVATION_COST_ESTIMATES, REGIONAL_MULTIPLIERS, DIY_FACTORS } from '../utils/constants/realEstateConstants';
 
 function Calculator() {
@@ -735,6 +736,7 @@ function Calculator() {
           )}
         </div>
       </div>
+      <TutorialHints />
     </div>
   );
 }

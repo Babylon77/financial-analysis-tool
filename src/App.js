@@ -8,7 +8,6 @@ import Calculator from './pages/Calculator';
 import Results from './pages/Results';
 import FinancialPlanningHub from './pages/FinancialPlanningHub';
 import ChatbotWidget from './components/ChatbotWidget';
-import TutorialHints from './components/TutorialHints';
 import ErrorBoundary from './components/common/ErrorBoundary';
 
 const FinancialProfileSection = lazy(() => import('./components/planning/FinancialProfileSection'));
@@ -55,7 +54,6 @@ function App() {
             </ErrorBoundary>
 
             <ChatbotWidget />
-            <TutorialHints showRandomHint={true} />
           </Layout>
         </Router>
       </UltronicThemeProvider>

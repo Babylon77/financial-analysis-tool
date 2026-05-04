@@ -165,23 +165,24 @@ const hints = [
     }
 ];
 
-const TutorialHints = ({ showRandomHint = true }) => {
+const DISMISSED_KEY = 'ultronic_tips_dismissed';
+
+const TutorialHints = () => {
   const [currentHint, setCurrentHint] = useState(null);
   const [showHint, setShowHint] = useState(false);
   const [showAllHints, setShowAllHints] = useState(false);
 
-  // Show random hint on component mount
   useEffect(() => {
-    if (showRandomHint) {
+    const dismissed = localStorage.getItem(DISMISSED_KEY);
+    if (!dismissed) {
       const timer = setTimeout(() => {
         const randomHint = hints[Math.floor(Math.random() * hints.length)];
         setCurrentHint(randomHint);
         setShowHint(true);
-      }, 2000); // Show after 2 seconds
-
+      }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [showRandomHint]);
+  }, []);
 
   const getRandomHint = () => {
     const randomHint = hints[Math.floor(Math.random() * hints.length)];
@@ -191,6 +192,7 @@ const TutorialHints = ({ showRandomHint = true }) => {
 
   const dismissHint = () => {
     setShowHint(false);
+    localStorage.setItem(DISMISSED_KEY, '1');
     setTimeout(() => setCurrentHint(null), 300);
   };
 
