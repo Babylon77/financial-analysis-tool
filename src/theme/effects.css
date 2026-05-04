@@ -1,0 +1,207 @@
+/* Ultronic Terminal - CRT & Terminal Effects */
+
+/* Scanline overlay - apply to containers */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 65, 0.015) 2px,
+    rgba(0, 255, 65, 0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.scanlines {
+  position: relative;
+}
+
+/* Phosphor green text glow */
+.crt-glow {
+  text-shadow:
+    0 0 4px currentColor,
+    0 0 8px rgba(0, 255, 65, 0.3);
+}
+
+.crt-glow-strong {
+  text-shadow:
+    0 0 4px currentColor,
+    0 0 11px rgba(0, 255, 65, 0.4),
+    0 0 20px rgba(0, 255, 65, 0.15);
+}
+
+/* Terminal border with subtle glow */
+.terminal-border {
+  border: 1px solid var(--surface-border);
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.05), inset 0 0 8px rgba(0, 255, 65, 0.02);
+}
+
+.terminal-border-active {
+  border: 1px solid var(--surface-border-light);
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.1), inset 0 0 12px rgba(0, 255, 65, 0.03);
+}
+
+/* Monospace data cells - for financial figures */
+.data-cell {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Positive/negative value coloring */
+.value-positive {
+  color: var(--terminal-green);
+}
+
+.value-negative {
+  color: var(--terminal-red);
+}
+
+.value-neutral {
+  color: var(--terminal-amber);
+}
+
+/* Terminal card surface */
+.terminal-card {
+  background: var(--surface-primary);
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.05);
+}
+
+.terminal-card:hover {
+  border-color: var(--surface-border-light);
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.08);
+}
+
+/* Glow button effect */
+.glow-btn {
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.glow-btn-green {
+  background: var(--terminal-dark-green);
+  color: var(--terminal-green);
+  border: 1px solid var(--terminal-dim-green);
+}
+
+.glow-btn-green:hover {
+  background: rgba(0, 255, 65, 0.15);
+  box-shadow: 0 0 15px rgba(0, 255, 65, 0.2), inset 0 0 15px rgba(0, 255, 65, 0.05);
+  border-color: var(--terminal-green);
+}
+
+.glow-btn-amber {
+  background: rgba(255, 176, 0, 0.1);
+  color: var(--terminal-amber);
+  border: 1px solid var(--terminal-amber-dim);
+}
+
+.glow-btn-amber:hover {
+  background: rgba(255, 176, 0, 0.15);
+  box-shadow: 0 0 15px rgba(255, 176, 0, 0.2), inset 0 0 15px rgba(255, 176, 0, 0.05);
+  border-color: var(--terminal-amber);
+}
+
+.glow-btn-red {
+  background: rgba(255, 7, 58, 0.1);
+  color: var(--terminal-red);
+  border: 1px solid var(--terminal-red-dim);
+}
+
+.glow-btn-red:hover {
+  background: rgba(255, 7, 58, 0.15);
+  box-shadow: 0 0 15px rgba(255, 7, 58, 0.2), inset 0 0 15px rgba(255, 7, 58, 0.05);
+  border-color: var(--terminal-red);
+}
+
+/* Subtle background grid pattern */
+.terminal-grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Typing cursor animation */
+@keyframes blink-cursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+.cursor-blink::after {
+  content: '_';
+  animation: blink-cursor 1s step-end infinite;
+  color: var(--terminal-green);
+}
+
+/* Fade-in for data loading */
+@keyframes terminal-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.terminal-fade-in {
+  animation: terminal-fade-in 0.3s ease-out forwards;
+}
+
+/* Number count-up effect helper */
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.terminal-flicker {
+  animation: flicker 0.15s ease-in-out;
+}
+
+/* Custom scrollbar for terminal aesthetic */
+.terminal-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.terminal-scrollbar::-webkit-scrollbar-track {
+  background: var(--surface-primary);
+}
+
+.terminal-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--surface-border-light);
+  border-radius: 3px;
+}
+
+.terminal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--terminal-dim-green);
+}
+
+/* Input field terminal styling */
+.terminal-input {
+  background: var(--surface-elevated);
+  border: 1px solid var(--surface-border);
+  color: var(--terminal-green);
+  font-family: 'JetBrains Mono', monospace;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.terminal-input:focus {
+  outline: none;
+  border-color: var(--terminal-dim-green);
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.15);
+}
+
+.terminal-input::placeholder {
+  color: var(--text-muted);
+}

@@ -87,10 +87,13 @@ app.get('/health', (req, res) => {
 
 // API documentation
 if (config.nodeEnv === 'development') {
-  const swaggerUi = require('swagger-ui-express');
-  const swaggerDocument = require('../docs/swagger.json');
-  
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  try {
+    const swaggerUi = require('swagger-ui-express');
+    const swaggerDocument = require('../docs/swagger.json');
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  } catch (e) {
+    logger.warn('Swagger docs not found — skipping /api-docs');
+  }
 }
 
 // API routes

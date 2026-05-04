@@ -171,7 +171,7 @@ const ChatbotWidget = () => {
       <div className="fixed bottom-6 right-6 z-50">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-lg transition-all duration-300 transform hover:scale-110"
+          className="glow-btn-green text-white rounded-full p-4 transition-all duration-300 transform hover:scale-110"
           aria-label="Open chat help"
         >
           {isOpen ? (
@@ -188,21 +188,21 @@ const ChatbotWidget = () => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-96 h-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 flex flex-col">
+        <div className="fixed bottom-24 right-4 left-4 sm:left-auto sm:right-6 sm:w-96 h-96 bg-surface-primary rounded-lg border border-surface-border z-50 flex flex-col">
           {/* Header */}
-          <div className="bg-indigo-600 text-white p-4 rounded-t-lg">
+          <div className="bg-surface-elevated text-terminal-green p-4 rounded-t-lg border-b border-surface-border">
             <div className="flex justify-between items-center">
-              <h3 className="font-semibold">Help Assistant</h3>
+              <h3 className="font-semibold text-terminal-green">Help Assistant</h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-indigo-200 hover:text-white transition-colors"
+                className="text-txt-muted hover:text-terminal-green transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <p className="text-indigo-200 text-sm mt-1">Ask me about using this tool!</p>
+            <p className="text-txt-muted text-sm mt-1">Ask me about using this tool!</p>
           </div>
 
           {/* Messages */}
@@ -210,9 +210,9 @@ const ChatbotWidget = () => {
             {messages.map((msg, index) => (
               <div key={index} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg text-sm ${
-                  msg.type === 'user' 
-                    ? 'bg-indigo-600 text-white rounded-br-none' 
-                    : 'bg-gray-100 text-gray-800 rounded-bl-none'
+                  msg.type === 'user'
+                    ? 'bg-terminal-dark-green text-terminal-green rounded-br-none'
+                    : 'bg-surface-elevated text-txt-primary rounded-bl-none'
                 }`}>
                   {msg.message}
                 </div>
@@ -224,13 +224,13 @@ const ChatbotWidget = () => {
           {/* Quick Questions */}
           {messages.length === 1 && (
             <div className="px-4 pb-2">
-              <p className="text-xs text-gray-500 mb-2">Quick questions:</p>
+              <p className="text-xs text-txt-muted mb-2">Quick questions:</p>
               <div className="flex flex-wrap gap-1">
                 {quickQuestions.map((question, index) => (
                   <button
                     key={index}
                     onClick={() => handleQuickQuestion(question)}
-                    className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded transition-colors"
+                    className="text-xs bg-surface-elevated hover:bg-terminal-dark-green text-txt-primary px-2 py-1 rounded transition-colors"
                   >
                     {question}
                   </button>
@@ -240,18 +240,18 @@ const ChatbotWidget = () => {
           )}
 
           {/* Input Form */}
-          <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200">
+          <form onSubmit={handleSubmit} className="p-4 border-t border-surface-border">
             <div className="flex space-x-2">
               <input
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Ask a question..."
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="terminal-input flex-1 rounded-lg px-3 py-2 text-sm"
               />
               <button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                className="glow-btn-green text-white px-4 py-2 rounded-lg text-sm transition-colors"
               >
                 Send
               </button>

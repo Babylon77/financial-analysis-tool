@@ -139,17 +139,17 @@ const PropertyComparison = () => {
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Property Comparison Tool</h1>
-        <p className="text-gray-600">Compare multiple investment properties and get recommendations</p>
+        <h1 className="text-3xl font-bold text-txt-primary mb-2">Property Comparison Tool</h1>
+        <p className="text-txt-secondary">Compare multiple investment properties and get recommendations</p>
       </div>
 
       {/* Add Property Section */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <div className="bg-surface-primary rounded-lg shadow-glow-green-sm p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Your Properties</h2>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+            className="glow-btn glow-btn-green px-4 py-2 rounded-md transition-colors"
           >
             {showAddForm ? 'Cancel' : 'Add Property'}
           </button>
@@ -159,61 +159,61 @@ const PropertyComparison = () => {
           <div className="border-t pt-4 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Property Name</label>
+                <label className="block text-sm font-medium text-txt-secondary mb-1">Property Name</label>
                 <input
                   type="text"
                   value={newProperty.name}
                   onChange={(e) => setNewProperty({...newProperty, name: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  className="terminal-input w-full"
                   placeholder="e.g., Main St Duplex"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price</label>
+                <label className="block text-sm font-medium text-txt-secondary mb-1">Purchase Price</label>
                 <input
                   type="number"
                   value={newProperty.purchasePrice}
                   onChange={(e) => setNewProperty({...newProperty, purchasePrice: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  className="terminal-input w-full"
                   placeholder="485000"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Renovation Cost</label>
+                <label className="block text-sm font-medium text-txt-secondary mb-1">Renovation Cost</label>
                 <input
                   type="number"
                   value={newProperty.renovationCost}
                   onChange={(e) => setNewProperty({...newProperty, renovationCost: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  className="terminal-input w-full"
                   placeholder="75000"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Expected Sale Price</label>
+                <label className="block text-sm font-medium text-txt-secondary mb-1">Expected Sale Price</label>
                 <input
                   type="number"
                   value={newProperty.expectedSellingPrice}
                   onChange={(e) => setNewProperty({...newProperty, expectedSellingPrice: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  className="terminal-input w-full"
                   placeholder="700000"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Rent</label>
+                <label className="block text-sm font-medium text-txt-secondary mb-1">Monthly Rent</label>
                 <input
                   type="number"
                   value={newProperty.expectedMonthlyRent}
                   onChange={(e) => setNewProperty({...newProperty, expectedMonthlyRent: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  className="terminal-input w-full"
                   placeholder="4500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
+                <label className="block text-sm font-medium text-txt-secondary mb-1">Strategy</label>
                 <select
                   value={newProperty.strategy}
                   onChange={(e) => setNewProperty({...newProperty, strategy: e.target.value})}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  className="terminal-input w-full"
                 >
                   <option value="LTR">Long-term Rental</option>
                   <option value="Fix & Flip">Fix & Flip</option>
@@ -223,7 +223,7 @@ const PropertyComparison = () => {
             </div>
             <button
               onClick={addProperty}
-              className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors"
+              className="glow-btn glow-btn-green px-6 py-2 rounded-md transition-colors"
             >
               Add Property
             </button>
@@ -233,24 +233,24 @@ const PropertyComparison = () => {
         {/* Property List */}
         <div className="space-y-3 mt-4">
           {properties.map(property => (
-            <div key={property.id} className={`flex items-center justify-between p-3 border rounded-md ${property.isActive ? 'border-blue-300 bg-blue-50' : 'border-gray-300 bg-gray-50'}`}>
+            <div key={property.id} className={`flex items-center justify-between p-3 border rounded-md ${property.isActive ? 'border-terminal-green bg-terminal-dark-green/20' : 'border-surface-border bg-surface-elevated'}`}>
               <div className="flex items-center space-x-3">
                 <input
                   type="checkbox"
                   checked={property.isActive}
                   onChange={() => toggleProperty(property.id)}
-                  className="h-4 w-4 text-blue-600"
+                  className="h-4 w-4 text-terminal-cyan"
                 />
                 <div>
-                  <h4 className="font-medium text-gray-900">{property.name}</h4>
-                  <p className="text-sm text-gray-600">
+                  <h4 className="font-medium text-txt-primary">{property.name}</h4>
+                  <p className="text-sm text-txt-secondary">
                     {formatCurrency(property.purchasePrice)} • {property.strategy} • {property.location}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => removeProperty(property.id)}
-                className="text-red-600 hover:text-red-800 text-sm"
+                className="text-terminal-red hover:text-terminal-red-dim text-sm"
               >
                 Remove
               </button>
@@ -261,13 +261,13 @@ const PropertyComparison = () => {
 
       {/* Recommendation Section */}
       {recommendation && (
-        <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">🏆 Recommended Property</h2>
-          <div className="bg-white rounded-lg p-4">
+        <div className="bg-surface-elevated border border-terminal-dark-green rounded-lg shadow-glow-green-sm p-6 mb-6">
+          <h2 className="text-xl font-semibold text-txt-primary mb-4">🏆 Recommended Property</h2>
+          <div className="bg-surface-primary rounded-lg p-4">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-lg font-bold text-green-700">{recommendation.name}</h3>
-                <p className="text-gray-600 mb-2">Overall Score: {Math.round(recommendation.overallScore * 10) / 10}/10</p>
+                <h3 className="text-lg font-bold text-terminal-green">{recommendation.name}</h3>
+                <p className="text-txt-secondary mb-2">Overall Score: {Math.round(recommendation.overallScore * 10) / 10}/10</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <span className="font-medium">ROI:</span> {Math.round(recommendation.roi)}%
@@ -290,43 +290,43 @@ const PropertyComparison = () => {
 
       {/* Comparison Table */}
       {comparisonResults.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-surface-primary rounded-lg shadow-glow-green-sm p-6">
           <h3 className="text-lg font-semibold mb-4">Property Comparison</h3>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-surface-border">
+              <thead className="bg-surface-elevated">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Property</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Investment</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ROI</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Flow</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall Score</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-txt-muted uppercase tracking-wider">Property</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-txt-muted uppercase tracking-wider">Investment</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-txt-muted uppercase tracking-wider">ROI</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-txt-muted uppercase tracking-wider">Cash Flow</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-txt-muted uppercase tracking-wider">Overall Score</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-surface-primary divide-y divide-surface-border">
                 {comparisonResults.map((property, index) => (
-                  <tr key={property.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={property.id} className={index % 2 === 0 ? 'bg-surface-primary' : 'bg-surface-elevated'}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{property.name}</div>
-                      <div className="text-sm text-gray-500">{property.strategy}</div>
+                      <div className="text-sm font-medium text-txt-primary">{property.name}</div>
+                      <div className="text-sm text-txt-muted">{property.strategy}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-primary">
                       {formatCurrency(property.downPayment)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-primary">
                       {Math.round(property.roi)}%
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-primary">
                       {property.monthlyCashFlow ? formatCurrency(property.monthlyCashFlow) : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-txt-primary">
                           {Math.round(property.overallScore * 10) / 10}/10
                         </div>
-                        <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
+                        <div className="ml-2 w-16 bg-surface-overlay rounded-full h-2">
                           <div
-                            className="bg-blue-600 h-2 rounded-full"
+                            className="bg-terminal-green h-2 rounded-full"
                             style={{ width: `${(property.overallScore / 10) * 100}%` }}
                           ></div>
                         </div>

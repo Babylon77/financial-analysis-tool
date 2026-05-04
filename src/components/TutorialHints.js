@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const TutorialHints = ({ showRandomHint = true }) => {
-  const [currentHint, setCurrentHint] = useState(null);
-  const [showHint, setShowHint] = useState(false);
-  const [showAllHints, setShowAllHints] = useState(false);
-
-  // Comprehensive list of hints
-  const hints = [
+const hints = [
     {
       category: "Getting Started",
       title: "Start with Realistic Numbers",
@@ -169,7 +163,12 @@ const TutorialHints = ({ showRandomHint = true }) => {
       description: "Include closing costs, inspection fees, appraisal, permits, and unexpected repairs in your analysis.",
       icon: "📝"
     }
-  ];
+];
+
+const TutorialHints = ({ showRandomHint = true }) => {
+  const [currentHint, setCurrentHint] = useState(null);
+  const [showHint, setShowHint] = useState(false);
+  const [showAllHints, setShowAllHints] = useState(false);
 
   // Show random hint on component mount
   useEffect(() => {
@@ -207,17 +206,17 @@ const TutorialHints = ({ showRandomHint = true }) => {
   if (showAllHints) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        <div className="bg-surface-primary rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden border border-surface-border">
           {/* Header */}
-          <div className="bg-indigo-600 text-white p-6">
+          <div className="bg-surface-elevated text-terminal-green p-6 border-b border-surface-border">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-2xl font-bold">Real Estate Investment Tips & Tricks</h2>
-                <p className="text-indigo-200 mt-1">Master the tool and improve your investing</p>
+                <h2 className="text-2xl font-bold text-terminal-green">Real Estate Investment Tips & Tricks</h2>
+                <p className="text-txt-muted mt-1">Master the tool and improve your investing</p>
               </div>
               <button
                 onClick={() => setShowAllHints(false)}
-                className="text-indigo-200 hover:text-white transition-colors"
+                className="text-txt-muted hover:text-terminal-red transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -230,17 +229,17 @@ const TutorialHints = ({ showRandomHint = true }) => {
           <div className="overflow-y-auto max-h-[calc(90vh-120px)] p-6">
             {Object.entries(hintsByCategory).map(([category, categoryHints]) => (
               <div key={category} className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b border-gray-200 pb-2">
+                <h3 className="text-lg font-semibold text-txt-primary mb-4 border-b border-surface-border pb-2">
                   {category}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {categoryHints.map((hint, index) => (
-                    <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div key={index} className="bg-surface-elevated rounded-lg p-4 border border-surface-border">
                       <div className="flex items-start space-x-3">
                         <span className="text-2xl">{hint.icon}</span>
                         <div>
-                          <h4 className="font-medium text-gray-900 mb-2">{hint.title}</h4>
-                          <p className="text-sm text-gray-600">{hint.description}</p>
+                          <h4 className="font-medium text-txt-primary mb-2">{hint.title}</h4>
+                          <p className="text-sm text-txt-secondary">{hint.description}</p>
                         </div>
                       </div>
                     </div>
@@ -251,14 +250,14 @@ const TutorialHints = ({ showRandomHint = true }) => {
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+          <div className="bg-surface-elevated px-6 py-4 border-t border-surface-border">
             <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-500">
-                💡 {hints.length} tips total • Updated regularly with new insights
+              <p className="text-sm text-txt-muted">
+                {hints.length} tips total - Updated regularly with new insights
               </p>
               <button
                 onClick={() => setShowAllHints(false)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                className="glow-btn-green text-white px-4 py-2 rounded-lg text-sm transition-colors"
               >
                 Close
               </button>
@@ -273,17 +272,17 @@ const TutorialHints = ({ showRandomHint = true }) => {
     <>
       {/* Random Hint Popup */}
       {showHint && currentHint && (
-        <div className="fixed top-6 right-6 bg-white rounded-lg shadow-xl border border-gray-200 p-4 max-w-sm z-40 transform transition-all duration-300">
+        <div className="fixed top-6 right-6 bg-surface-primary rounded-lg border border-terminal-amber-dim p-4 max-w-sm z-40 transform transition-all duration-300">
           <div className="flex justify-between items-start mb-2">
             <div className="flex items-center space-x-2">
               <span className="text-lg">{currentHint.icon}</span>
-              <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
+              <span className="text-xs font-medium text-terminal-amber bg-surface-elevated px-2 py-1 rounded">
                 TIP
               </span>
             </div>
             <button
               onClick={dismissHint}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-txt-muted hover:text-terminal-red transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -291,19 +290,19 @@ const TutorialHints = ({ showRandomHint = true }) => {
             </button>
           </div>
           
-          <h4 className="font-medium text-gray-900 mb-2">{currentHint.title}</h4>
-          <p className="text-sm text-gray-600 mb-3">{currentHint.description}</p>
-          
+          <h4 className="font-medium text-txt-primary mb-2">{currentHint.title}</h4>
+          <p className="text-sm text-txt-secondary mb-3">{currentHint.description}</p>
+
           <div className="flex justify-between items-center">
             <button
               onClick={() => setShowAllHints(true)}
-              className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors"
+              className="text-xs text-terminal-cyan hover:text-terminal-green transition-colors"
             >
               View All Tips →
             </button>
             <button
               onClick={getRandomHint}
-              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded transition-colors"
+              className="text-xs bg-surface-elevated hover:bg-terminal-dark-green text-txt-primary px-2 py-1 rounded transition-colors"
             >
               Another Tip
             </button>
@@ -315,7 +314,7 @@ const TutorialHints = ({ showRandomHint = true }) => {
       <div className="fixed bottom-6 left-6 z-50">
         <button
           onClick={() => setShowAllHints(true)}
-          className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full p-3 shadow-lg transition-all duration-300 transform hover:scale-110"
+          className="bg-terminal-amber hover:bg-terminal-amber text-black rounded-full p-3 transition-all duration-300 transform hover:scale-110"
           title="View Tips & Tricks"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

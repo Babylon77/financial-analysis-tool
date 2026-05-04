@@ -1,101 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { runMonteCarloSimulation, RISK_PROFILES } from '../utils/monteCarloSimulation';
 import MonteCarloChart from './MonteCarloChart';
 import MonteCarloResults from './MonteCarloResults';
 import SavingsGrowthChart from './SavingsGrowthChart';
+import MoneyInput from './MoneyInput';
 import { formatCurrency } from '../utils/formatters';
+import { useFinancialPlan, DEFAULT_CONFIG } from '../context/FinancialPlanContext';
 
 const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
-  // Load persisted data from sessionStorage
-  const loadPersistedData = () => {
-    try {
-      const savedData = sessionStorage.getItem('assetAllocationData');
-      if (savedData) {
-        return JSON.parse(savedData);
-      }
-    } catch (error) {
-      console.error('Error loading persisted data:', error);
+  const { state: planState, dispatch } = useFinancialPlan();
+
+  const profileTotal = useMemo(() =>
+    Object.values(planState.profile.accounts).reduce((s, v) => s + v, 0),
+    [planState.profile.accounts]
+  );
+
+  const [configValues, setConfigValues] = useState(() => {
+    const config = { ...planState.simulationConfig };
+    if (config.initialInvestment === DEFAULT_CONFIG.initialInvestment && profileTotal > 0) {
+      config.initialInvestment = profileTotal;
     }
-    return {
-    initialInvestment: initialInvestment,
-    years: 30,
-      annualContribution: 50000,
-      savingsGrowthRate: 3.0,
-    riskProfile: 'balanced',
-      numberOfSimulations: 10000,
-    inflationRate: 2.5
-    };
-  };
-
-  const [configValues, setConfigValues] = useState(loadPersistedData());
-
-  // Load persisted simulation results
-  const loadPersistedResults = () => {
-    try {
-      const savedData = sessionStorage.getItem('assetAllocationComplete');
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        return parsed.simulationResults || null;
-      }
-    } catch (error) {
-      console.error('Error loading persisted results:', error);
-    }
-    return null;
-  };
-
-  const [simulationResults, setSimulationResults] = useState(loadPersistedResults());
+    return config;
+  });
+  const [simulationResults, setSimulationResults] = useState(planState.simulationResults);
   const [isLoading, setIsLoading] = useState(false);
-  const [showValidation, setShowValidation] = useState(!!loadPersistedResults());
+  const [showValidation, setShowValidation] = useState(!!planState.simulationResults);
 
-  // Persist data to sessionStorage whenever configValues change
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('assetAllocationData', JSON.stringify(configValues));
-    } catch (error) {
-      console.error('Error saving data:', error);
-    }
-  }, [configValues]);
+  const profileSavings = planState.profile.annualSavings;
+  const profileYears = Math.max(1, planState.profile.spouse1.retirementAge - planState.profile.spouse1.currentAge);
 
-  // Also persist simulation results for Advanced Retirement Planner
   useEffect(() => {
-    if (simulationResults) {
-      try {
-        const dataToSave = {
-          ...configValues,
-          simulationResults,
-          lastUpdated: Date.now()
-        };
-        sessionStorage.setItem('assetAllocationComplete', JSON.stringify(dataToSave));
-      } catch (error) {
-        console.error('Error saving simulation results:', error);
-      }
+    const updates = {};
+    if (profileTotal > 0 && profileTotal !== configValues.initialInvestment) {
+      updates.initialInvestment = profileTotal;
     }
-  }, [simulationResults, configValues]);
+    if (profileSavings > 0 && profileSavings !== configValues.annualContribution) {
+      updates.annualContribution = profileSavings;
+    }
+    if (profileYears > 0 && profileYears !== configValues.years) {
+      updates.years = profileYears;
+    }
+    if (Object.keys(updates).length > 0) {
+      setConfigValues(prev => ({ ...prev, ...updates }));
+      dispatch({ type: 'SET_SIMULATION_CONFIG', payload: updates });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileTotal, profileSavings, profileYears]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
-    // Handle numeric inputs
-    if (['initialInvestment', 'years', 'annualContribution', 'numberOfSimulations', 
-         'inflationRate', 'savingsGrowthRate'].includes(name)) {
-      setConfigValues({
-        ...configValues,
-        [name]: parseFloat(value) || 0
-      });
-    } else {
-      setConfigValues({
-        ...configValues,
-        [name]: value
-      });
-    }
+
+    const numericFields = ['initialInvestment', 'years', 'annualContribution', 'numberOfSimulations',
+         'inflationRate', 'savingsGrowthRate'];
+    const newValue = numericFields.includes(name) ? (parseFloat(value) || 0) : value;
+    const updated = { ...configValues, [name]: newValue };
+    setConfigValues(updated);
+    dispatch({ type: 'SET_SIMULATION_CONFIG', payload: { [name]: newValue } });
   };
 
   const runSimulation = () => {
     setIsLoading(true);
-    
-    // Short timeout to allow UI to update with loading state
+
     setTimeout(() => {
       try {
+        // Use profile age if available, otherwise default to 25
+        const startingAge = planState?.profile?.spouse1?.currentAge || 25;
+
         const results = runMonteCarloSimulation({
           initialInvestment: configValues.initialInvestment,
           years: configValues.years,
@@ -103,14 +73,16 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
           savingsGrowthRate: configValues.savingsGrowthRate / 100,
           riskProfile: configValues.riskProfile,
           numberOfSimulations: configValues.numberOfSimulations,
-          inflationRate: configValues.inflationRate / 100
+          inflationRate: configValues.inflationRate / 100,
+          startingAge,
         });
-        
+
         setSimulationResults(results);
         setShowValidation(true);
+        dispatch({ type: 'SET_SIMULATION_CONFIG', payload: { ...configValues } });
+        dispatch({ type: 'SYNC_FROM_SIMULATION', payload: { config: configValues, results } });
       } catch (error) {
         console.error("Error running simulation:", error);
-        // Could add error state handling here
       } finally {
         setIsLoading(false);
       }
@@ -124,60 +96,42 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-xl font-bold mb-4">Investment Projection Simulator</h2>
-      <p className="text-gray-600 mb-6">
-        This Monte Carlo simulation models potential investment outcomes based on historical market data 
+    <div className="terminal-card p-6 mb-6">
+      <h2 className="text-lg font-display font-semibold text-terminal-green uppercase tracking-wider crt-glow mb-4">Investment Projection Simulator</h2>
+      <p className="text-txt-secondary mb-6">
+        This Monte Carlo simulation models potential investment outcomes based on historical market data
         and economic cycles. It includes realistic bull/bear market cycles and incorporates extreme events like market crashes.
       </p>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-txt-secondary mb-1">
               Initial Investment
             </label>
-            <div className="mt-1 relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-500 sm:text-sm">$</span>
-              </div>
-              <input
-                type="number"
-                name="initialInvestment"
-                value={configValues.initialInvestment}
-                onChange={handleInputChange}
-                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                placeholder="0"
-                min="0"
-              />
-            </div>
+            <MoneyInput
+              name="initialInvestment"
+              value={configValues.initialInvestment}
+              onChange={handleInputChange}
+            />
           </div>
-          
+
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-txt-secondary mb-1">
               Annual Contribution
             </label>
-            <div className="mt-1 relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-500 sm:text-sm">$</span>
-              </div>
-              <input
-                type="number"
-                name="annualContribution"
-                value={configValues.annualContribution}
-                onChange={handleInputChange}
-                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-7 pr-12 sm:text-sm border-gray-300 rounded-md"
-                placeholder="0"
-                min="0"
-              />
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
+            <MoneyInput
+              name="annualContribution"
+              value={configValues.annualContribution}
+              onChange={handleInputChange}
+            />
+            <p className="mt-1 text-xs text-txt-muted">
               Starting annual contribution amount
             </p>
           </div>
-          
+
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-txt-secondary mb-1">
               Savings Growth Rate (% per year)
             </label>
             <input
@@ -185,47 +139,47 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
               name="savingsGrowthRate"
               value={configValues.savingsGrowthRate}
               onChange={handleInputChange}
-              className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              className="terminal-input block w-full sm:text-sm rounded-md"
               placeholder="3.0"
               step="0.1"
               min="0"
               max="15"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-txt-muted">
               Annual increase in savings rate above inflation (career progression, raises, etc.)
             </p>
           </div>
-          
+
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Time Horizon (Years)
+            <label className="block text-sm font-medium text-txt-secondary mb-1">
+              Time Horizon (Years to Retirement)
             </label>
             <input
               type="number"
               name="years"
               value={configValues.years}
               onChange={handleInputChange}
-              className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              className="terminal-input block w-full sm:text-sm rounded-md"
               placeholder="30"
               min="1"
               max="50"
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Longer time horizons generally reduce investment risk
+            <p className="mt-1 text-xs text-txt-muted">
+              Age {planState.profile.spouse1.currentAge} → {planState.profile.spouse1.retirementAge} ({profileYears} years from profile)
             </p>
           </div>
         </div>
-        
+
         <div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-txt-secondary mb-1">
               Risk Profile
             </label>
             <select
               name="riskProfile"
               value={configValues.riskProfile}
               onChange={handleInputChange}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+              className="terminal-input bg-surface-elevated text-terminal-green mt-1 block w-full pl-3 pr-10 py-2 text-base sm:text-sm rounded-md"
             >
               {Object.keys(RISK_PROFILES).map(profile => (
                 <option key={profile} value={profile}>
@@ -233,33 +187,33 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-txt-muted">
               {getProfileDescription(configValues.riskProfile)}
             </p>
           </div>
-          
+
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Inflation Rate (%)
+            <label className="block text-sm font-medium text-txt-secondary mb-1">
+              Expected Inflation Rate (%)
             </label>
             <input
               type="number"
               name="inflationRate"
               value={configValues.inflationRate}
               onChange={handleInputChange}
-              className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-              placeholder="2.5"
+              className="terminal-input block w-full sm:text-sm rounded-md"
+              placeholder="3.0"
               step="0.1"
               min="0"
               max="10"
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Historical average is 2-3% annually in the United States
+            <p className="mt-1 text-xs text-txt-muted">
+              Mean for stochastic inflation model (O-U process). Historical average ~3%.
             </p>
           </div>
-          
+
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-txt-secondary mb-1">
               Number of Simulations
             </label>
             <input
@@ -267,86 +221,86 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
               name="numberOfSimulations"
               value={configValues.numberOfSimulations}
               onChange={handleInputChange}
-              className="focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+              className="terminal-input block w-full sm:text-sm rounded-md"
               placeholder="10000"
               step="1000"
               min="1000"
               max="50000"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-txt-muted">
               More simulations = more stable results. 10,000+ recommended for reliable percentiles.
             </p>
           </div>
-          
-          <div className="mt-4 bg-blue-50 p-3 rounded-lg text-xs text-blue-700">
-            <h4 className="font-medium text-blue-800 mb-1">Expected Return (Real Return Above Inflation)</h4>
+
+          <div className="mt-4 bg-surface-elevated border border-surface-border p-3 rounded-lg text-xs text-txt-primary">
+            <h4 className="font-medium text-terminal-cyan mb-1">Expected Real Return (Above Inflation)</h4>
             <p>
-              <strong>{RISK_PROFILES[configValues.riskProfile].meanReturn}%</strong> annual average for {configValues.riskProfile} portfolio
+              <strong>{RISK_PROFILES[configValues.riskProfile].meanReturn}%</strong> real annual average for {configValues.riskProfile} portfolio
               <br/>
-              <span className="text-blue-600">Range: {RISK_PROFILES[configValues.riskProfile].worstYear}% to {RISK_PROFILES[configValues.riskProfile].bestYear}% in a single year</span>
+              <span className="text-terminal-cyan">Range: {RISK_PROFILES[configValues.riskProfile].worstYear}% to {RISK_PROFILES[configValues.riskProfile].bestYear}% in a single year</span>
               <br/>
-              <span className="text-blue-600">Historical max drawdown: {RISK_PROFILES[configValues.riskProfile].maxDrawdown}%</span>
+              <span className="text-terminal-cyan">Historical max drawdown: {RISK_PROFILES[configValues.riskProfile].maxDrawdown}%</span>
               <br/>
-              <span className="text-blue-500 font-medium">💡 These returns are inflation-adjusted (real returns). Simulation accounts for {configValues.inflationRate}% inflation.</span>
+              <span className="text-terminal-amber font-medium">All returns are real (inflation-adjusted). Inflation simulated stochastically (mean {configValues.inflationRate}%).</span>
             </p>
           </div>
         </div>
       </div>
-      
+
       <div className="flex justify-center mb-6">
         <button
           onClick={runSimulation}
           disabled={isLoading}
-          className="px-6 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          className="glow-btn glow-btn-green px-8 py-3 text-sm font-mono rounded disabled:opacity-50"
         >
           {isLoading ? 'Running Simulation...' : 'Run Simulation'}
         </button>
       </div>
-      
+
       {isLoading && (
-        <div className="flex justify-center items-center h-80 bg-gray-50 rounded-lg">
+        <div className="flex justify-center items-center h-80 bg-surface-elevated rounded-lg border border-surface-border">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-700 mx-auto mb-4"></div>
-            <p className="text-gray-600">Running {configValues.numberOfSimulations.toLocaleString()} simulations...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-terminal-green mx-auto mb-4"></div>
+            <p className="text-txt-secondary">Running {configValues.numberOfSimulations.toLocaleString()} simulations...</p>
           </div>
         </div>
       )}
-      
+
       {!isLoading && simulationResults && (
         <div className="mt-4">
-          <MonteCarloChart 
-            simulationData={simulationResults} 
+          <MonteCarloChart
+            simulationData={simulationResults}
           />
-          
+
           <div className="mt-6">
             <MonteCarloResults simulationData={simulationResults} />
           </div>
-          
+
           <div className="mt-6">
-            <SavingsGrowthChart 
+            <SavingsGrowthChart
               timeSeriesData={simulationResults.timeSeriesData}
               initialSavings={configValues.annualContribution}
               savingsGrowthRate={configValues.savingsGrowthRate}
-              spouse1RetirementAge={configValues.years + 25} // Assume retirement at end of investment period
-              spouse2RetirementAge={configValues.years + 25}
-              spouse1Age={25} // Assume starting at age 25
-              spouse2Age={25} // Assume starting at age 25
+              spouse1RetirementAge={configValues.years + (planState?.profile?.spouse1?.currentAge || 25)}
+              spouse2RetirementAge={configValues.years + (planState?.profile?.spouse2?.currentAge || 25)}
+              spouse1Age={planState?.profile?.spouse1?.currentAge || 25}
+              spouse2Age={planState?.profile?.spouse2?.currentAge || 25}
             />
           </div>
-          
+
           {showValidation && (
-            <div className="mt-6 bg-green-50 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold text-green-800 mb-2">Model Validation</h3>
+            <div className="mt-6 bg-surface-elevated border border-terminal-dark-green p-4 rounded-lg">
+              <h3 className="text-lg font-display font-semibold text-terminal-green mb-2">Model Validation</h3>
               <div className="text-sm">
-                <p className="mb-2">This simulation has been calibrated to match historical performance:</p>
-                <ul className="list-disc pl-5 space-y-1 text-gray-700">
+                <p className="text-txt-primary mb-2">This simulation has been calibrated to match historical performance:</p>
+                <ul className="list-disc pl-5 space-y-1 text-txt-primary">
                   <li>
-                    <strong>Target annual return:</strong> {RISK_PROFILES[configValues.riskProfile].meanReturn}% | 
-                    <strong> Simulated:</strong> {(simulationResults.avgAnnualReturn * 100).toFixed(2)}%
+                    <strong>Expected Real Return:</strong> {RISK_PROFILES[configValues.riskProfile].meanReturn}% |
+                    <strong> Simulated Real CAGR:</strong> <span className="data-cell">{(simulationResults.medianCAGR * 100).toFixed(2)}%</span>
                   </li>
                   <li>
-                    <strong>Historical drawdowns:</strong> {Math.abs(RISK_PROFILES[configValues.riskProfile].maxDrawdown)}% | 
-                    <strong> Simulated:</strong> {Math.abs((simulationResults.drawdowns.worst * 100).toFixed(1))}%
+                    <strong>Historical drawdowns:</strong> {Math.abs(RISK_PROFILES[configValues.riskProfile].maxDrawdown)}% |
+                    <strong> Simulated:</strong> <span className="data-cell">{Math.abs((simulationResults.drawdowns.worst * 100).toFixed(1))}%</span>
                   </li>
                   <li>
                     The model correctly simulates market regimes (bull/bear markets) and extreme events like the 2008 crisis.
@@ -355,36 +309,36 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
               </div>
             </div>
           )}
-          
-          <div className="mt-6 bg-blue-50 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold text-blue-800 mb-2">Simulation Summary</h3>
+
+          <div className="mt-6 bg-surface-elevated border border-surface-border p-4 rounded-lg">
+            <h3 className="text-lg font-display font-semibold text-terminal-green mb-2">Simulation Summary</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-txt-primary">
                   <span className="font-medium">Initial Investment:</span> {' '}
-                  <span className="font-bold">{formatCurrency(configValues.initialInvestment)}</span>
+                  <span className="font-bold data-cell">{formatCurrency(configValues.initialInvestment)}</span>
                 </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-txt-secondary">
                   With {configValues.annualContribution > 0 ? formatCurrency(configValues.annualContribution) + ' annual contribution' : 'no annual contributions'}
                 </p>
               </div>
-              
+
               <div>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-txt-primary">
                   <span className="font-medium">Median Final Value:</span> {' '}
-                  <span className="font-bold">{formatCurrency(simulationResults.finalValues.median)}</span>
+                  <span className="font-bold data-cell">{formatCurrency(simulationResults.finalValues.median)}</span>
                 </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-txt-secondary">
                   After {configValues.years} years (inflation-adjusted)
                 </p>
               </div>
-              
+
               <div>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-txt-primary">
                   <span className="font-medium">Risk Profile:</span> {' '}
                   <span className="font-bold capitalize">{configValues.riskProfile}</span>
                 </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-txt-secondary">
                   Historical range: {RISK_PROFILES[configValues.riskProfile].worstYear}% to {RISK_PROFILES[configValues.riskProfile].bestYear}%
                 </p>
               </div>
@@ -392,14 +346,14 @@ const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
           </div>
         </div>
       )}
-      
-      <div className="mt-6 text-xs text-gray-500">
-        <p>DISCLAIMER: This simulation is for educational purposes only and does not constitute financial advice. 
-        Past performance does not guarantee future results. The simulation uses historical data patterns but actual 
+
+      <div className="mt-6 text-xs text-txt-muted">
+        <p>DISCLAIMER: This simulation is for educational purposes only and does not constitute financial advice.
+        Past performance does not guarantee future results. The simulation uses historical data patterns but actual
         future market conditions may differ significantly.</p>
       </div>
     </div>
   );
 };
 
-export default MonteCarloSimulator; 
+export default MonteCarloSimulator;

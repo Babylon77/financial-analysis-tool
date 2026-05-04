@@ -200,6 +200,13 @@ const userSchema = new mongoose.Schema({
     default: 'member',
   },
 
+  // Financial Data (synced from frontend)
+  financialData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  financialDataUpdatedAt: Date,
+
   // Metadata
   referredBy: {
     type: mongoose.Schema.ObjectId,

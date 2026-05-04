@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Chart, registerables } from 'chart.js';
 import { formatCurrency } from '../utils/formatters';
 import zoomPlugin from 'chartjs-plugin-zoom';
@@ -11,8 +11,7 @@ const MonteCarloChart = ({ simulationData }) => {
   const chartInstance = useRef(null);
   const [useLogScale, setUseLogScale] = useState(false);
   
-  // Function to recreate the chart with current settings
-  const createChart = () => {
+  const createChart = useCallback(() => {
     if (!simulationData || !chartRef.current) return;
     
     const medianPath = simulationData.medianPath;
@@ -166,7 +165,7 @@ const MonteCarloChart = ({ simulationData }) => {
               mode: 'xy',
               drag: {
                 enabled: true,
-                backgroundColor: 'rgba(225,225,225,0.3)',
+                backgroundColor: 'rgba(0, 255, 65, 0.1)',
                 borderColor: 'rgba(54, 162, 235, 0.5)',
                 borderWidth: 1
               }
@@ -197,8 +196,8 @@ const MonteCarloChart = ({ simulationData }) => {
         }
       }
     });
-  };
-  
+  }, [simulationData, useLogScale]);
+
   // Effect for initial chart creation and updates when data or scale changes
   useEffect(() => {
     createChart();
@@ -220,38 +219,38 @@ const MonteCarloChart = ({ simulationData }) => {
     <div>
       <div className="mb-4 flex justify-between items-center">
         <div className="flex space-x-2">
-          <button 
+          <button
             onClick={toggleScale}
-            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1 glow-btn glow-btn-green text-sm rounded focus:outline-none"
           >
             {useLogScale ? 'Use Linear Scale' : 'Use Log Scale'}
           </button>
-          <button 
+          <button
             onClick={resetZoom}
-            className="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="px-3 py-1 bg-surface-elevated text-txt-primary text-sm rounded hover:bg-surface-overlay border border-surface-border focus:outline-none"
           >
             Reset Zoom
           </button>
         </div>
-        <div className="text-xs text-gray-500 italic">
+        <div className="text-xs text-txt-secondary italic">
           Tip: Scroll to zoom, Shift+drag to pan
         </div>
       </div>
-      
-      <div className="relative border border-gray-200 rounded-lg overflow-x-auto mx-auto" style={{ maxWidth: '700px' }}>
+
+      <div className="relative border border-surface-border rounded-lg overflow-x-auto mx-auto" style={{ maxWidth: '700px' }}>
         <canvas ref={chartRef} style={{ height: '220px', width: '100%' }}></canvas>
       </div>
-      
-      <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-        <h4 className="text-sm font-medium text-gray-700 mb-2">Chart Legend:</h4>
-        <ul className="text-xs text-gray-600 space-y-1">
-          <li><span className="inline-block w-3 h-3 mr-1 bg-blue-500 rounded-full"></span> <strong>Median Case:</strong> The middle outcome (50th percentile)</li>
-          <li><span className="inline-block w-3 h-3 mr-1 bg-green-500 rounded-full"></span> <strong>Best Case:</strong> Top 1% of outcomes</li>
-          <li><span className="inline-block w-3 h-3 mr-1 bg-red-500 rounded-full"></span> <strong>Worst Case:</strong> Bottom 1% of outcomes</li>
-          <li><span className="inline-block w-3 h-3 mr-1 bg-orange-500 rounded-full"></span> <strong>Worst Drawdown:</strong> The path with the largest market crash</li>
-          <li><span className="inline-block w-3 h-3 mr-1 bg-gray-300 rounded-full"></span> <strong>Background Paths:</strong> Individual simulation paths showing overall variability</li>
+
+      <div className="mt-4 p-3 bg-surface-elevated rounded-lg border border-surface-border">
+        <h4 className="text-sm font-medium text-txt-primary mb-2">Chart Legend:</h4>
+        <ul className="text-xs text-txt-secondary space-y-1">
+          <li><span className="inline-block w-3 h-3 mr-1 bg-terminal-cyan rounded-full"></span> <strong>Median Case:</strong> The middle outcome (50th percentile)</li>
+          <li><span className="inline-block w-3 h-3 mr-1 bg-terminal-green rounded-full"></span> <strong>Best Case:</strong> Top 1% of outcomes</li>
+          <li><span className="inline-block w-3 h-3 mr-1 bg-terminal-red rounded-full"></span> <strong>Worst Case:</strong> Bottom 1% of outcomes</li>
+          <li><span className="inline-block w-3 h-3 mr-1 bg-terminal-amber rounded-full"></span> <strong>Worst Drawdown:</strong> The path with the largest market crash</li>
+          <li><span className="inline-block w-3 h-3 mr-1 bg-surface-overlay rounded-full border border-surface-border"></span> <strong>Background Paths:</strong> Individual simulation paths showing overall variability</li>
         </ul>
-        <p className="mt-2 text-xs text-gray-500">All values shown are inflation-adjusted (real) returns. {useLogScale ? 'Using logarithmic scale to better compare growth rates.' : ''}</p>
+        <p className="mt-2 text-xs text-txt-muted">All values shown are inflation-adjusted (real) returns. {useLogScale ? 'Using logarithmic scale to better compare growth rates.' : ''}</p>
       </div>
     </div>
   );

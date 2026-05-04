@@ -1,37 +1,41 @@
 /**
  * Multi-Asset Monte Carlo simulation utility for investment projections.
  * This model simulates stocks, bonds, and inflation as separate but correlated asset classes.
+ * ALL returns in the engine are REAL (above inflation). Document this clearly.
  */
 
+import { calculateGlidepath } from './calculations/advancedStrategies';
+
 // Core financial parameters for major asset classes and economic factors
-// Sources: Combination of historical data (S&P 500, US 10-Year Treasury, CPI) and standard capital market assumptions.
+// All means are ARITHMETIC (not geometric/CAGR). The log-normal drift formula converts to geometric.
+// Sources: Ibbotson SBBI 1926-2024, real (inflation-adjusted) returns.
 export const ASSET_CLASS_PARAMS = {
   stocks: {
-    mean: 0.095,  // Expected long-term real return for equities (9.5% real, ~12.5% nominal with 3% inflation)
-    stdDev: 0.18, // Volatility of equity returns
+    mean: 0.09,   // 9% real arithmetic mean → ~7% CAGR after volatility drag
+    stdDev: 0.18, // Annualized volatility of real equity returns
   },
   bonds: {
-    meanReal: 0.015, // Expected long-term real return for bonds (return above inflation)
-    stdDev: 0.07,    // Volatility of bond returns
-    inflationSensitivity: -0.5, // How much bond returns are hurt by an unexpected 1% rise in inflation
+    meanReal: 0.025, // 2.5% real arithmetic mean for intermediate-term bonds
+    stdDev: 0.07,
+    inflationSensitivity: -0.5,
   },
   inflation: {
-    mean: 0.03,  // Expected long-term inflation rate
-    stdDev: 0.04, // Volatility of inflation
+    mean: 0.03,
+    stdDev: 0.04,
   },
 };
 
-// Defines the correlation between asset classes.
 export const CORRELATIONS = {
-  stock_bond: -0.2, // Stocks and bonds are negatively correlated
+  stock_bond: -0.2,
 };
 
-// Defines the asset allocation mix for each risk profile.
+// meanReturn = expected real CAGR (geometric mean) for each allocation.
+// Derived from: portfolio arithmetic mean minus 0.5 * portfolio variance.
 export const RISK_PROFILES = {
-  conservative: { stocks: 0.40, bonds: 0.60 },
-  balanced:     { stocks: 0.60, bonds: 0.40 },
-  growth:       { stocks: 0.80, bonds: 0.20 },
-  aggressive:   { stocks: 1.00, bonds: 0.00 },
+  conservative: { stocks: 0.30, bonds: 0.70, meanReturn: 4.0,  worstYear: -22, bestYear: 28,  maxDrawdown: -35 },
+  balanced:     { stocks: 0.60, bonds: 0.40, meanReturn: 5.5,  worstYear: -33, bestYear: 38,  maxDrawdown: -45 },
+  growth:       { stocks: 0.80, bonds: 0.20, meanReturn: 6.5,  worstYear: -42, bestYear: 48,  maxDrawdown: -52 },
+  aggressive:   { stocks: 1.00, bonds: 0.00, meanReturn: 7.0,  worstYear: -50, bestYear: 55,  maxDrawdown: -60 },
 };
 
 // Historical validation benchmarks, kept for reference
@@ -63,9 +67,17 @@ const runSimulationPath = ({
   annualContribution,
   savingsGrowthRate,
   allocation,
+  inflationMean,
+  glidepath = null,
+  spendingShocks = null,
 }) => {
   // Destructure parameters for stocks, bonds, and inflation
-  const { stocks: stockParams, bonds: bondParams, inflation: inflationParams } = ASSET_CLASS_PARAMS;
+  const { stocks: stockParams, bonds: bondParams, inflation: inflationDefaults } = ASSET_CLASS_PARAMS;
+  // Allow caller to override the inflation mean; fall back to the default
+  const inflationParams = {
+    ...inflationDefaults,
+    mean: inflationMean != null ? inflationMean : inflationDefaults.mean,
+  };
   const { stock_bond: stockBondCorrelation } = CORRELATIONS;
   
   // Calculate log-normal drift for equities
@@ -88,8 +100,6 @@ const runSimulationPath = ({
   const bullMarketLength = Math.floor(4 + Math.random() * 4); // 4-7 years
   const bearMarketLength = Math.floor(1 + Math.random() * 2); // 1-2 years
   let consecutiveNegativeEquityYears = 0;
-  let yearsSinceStrongRecovery = 0;
-  const equityReturnsHistory = [];
   
   for (let year = 1; year <= years; year++) {
     // 1. SIMULATE ECONOMIC CONDITIONS FOR THE YEAR
@@ -101,11 +111,12 @@ const runSimulationPath = ({
     // Create correlated random number for bonds
     const zBond = stockBondCorrelation * zStock + Math.sqrt(1 - stockBondCorrelation ** 2) * zBondInd;
 
-    // Simulate inflation for the year (with some mean reversion)
+    // Simulate inflation for the year using Ornstein-Uhlenbeck mean-reversion process
     const lastInflation = year > 1 ? yearlyReturns[year - 2]?.inflation || inflationParams.mean : inflationParams.mean;
-    const lastStockReturn = year > 1 ? yearlyReturns[year - 2]?.stock || 0 : 0;
-    const inflationMeanReversion = (inflationParams.mean - lastInflation) * 0.25;
-    const currentInflation = inflationParams.mean + inflationParams.stdDev * zInflation + inflationMeanReversion;
+    // O-U: inflation_t = lastInflation + 0.25*(mean - lastInflation) + sigma*z
+    const currentInflation = Math.max(-0.02,
+      lastInflation + 0.25 * (inflationParams.mean - lastInflation) + inflationParams.stdDev * zInflation
+    );
     cumulativeInflation *= (1 + currentInflation); // Update the cumulative inflation factor
 
     // 2. SIMULATE ASSET RETURNS
@@ -129,13 +140,7 @@ const runSimulationPath = ({
 
     // --- MINIMAL BEHAVIORAL ADJUSTMENTS ---
 
-    // 1. Crash modeling: Small probability of severe losses
-    const crashProbability = lastStockReturn < -0.25 ? 0.003 : 0.008; // Reduced frequency
-    if (Math.random() < crashProbability) {
-      stockReturn = -0.25 - Math.random() * 0.15; // -25% to -40% (less severe)
-    }
-    
-    // 2. Prevent unrealistic consecutive crashes (but don't artificially boost returns)
+    // Prevent unrealistic consecutive crashes (but don't artificially boost returns)
     if (consecutiveNegativeEquityYears > 2 && stockReturn < -0.20) {
       stockReturn = -0.05 - Math.random() * 0.10; // Small loss instead of severe loss
       consecutiveNegativeEquityYears = 0;
@@ -147,29 +152,39 @@ const runSimulationPath = ({
     } else {
       consecutiveNegativeEquityYears = 0;
     }
-    if (stockReturn > 0.20) {
-      yearsSinceStrongRecovery = 0;
-    }
-    yearsSinceStrongRecovery++;
-
     // Cap extreme losses at 50% for a single year
     stockReturn = Math.max(-0.50, stockReturn);
 
-    // Bond return is based on its real return + inflation, adjusted for inflation shocks
-    const expectedBondReturn = bondParams.meanReal + currentInflation;
+    // Bond return is purely REAL (no inflation added to drift), consistent with stock returns
+    const expectedBondReturn = bondParams.meanReal;
     const bondDrift = Math.log(1 + expectedBondReturn) - 0.5 * bondParams.stdDev ** 2;
     let bondReturn = Math.exp(bondDrift + bondParams.stdDev * zBond) - 1;
-    
-    // Adjust for inflation surprise
+
+    // Adjust for inflation surprise (unexpected inflation hurts real bond returns)
     const inflationSurprise = currentInflation - inflationParams.mean;
     bondReturn += inflationSurprise * bondParams.inflationSensitivity;
 
     // 3. CALCULATE PORTFOLIO RETURN (on existing balance only)
-    const portfolioReturn = (stockReturn * allocation.stocks) + (bondReturn * allocation.bonds);
+    let stockPct = allocation.stocks;
+    let bondPct = allocation.bonds;
+    if (glidepath && year >= (glidepath.retirementYear || 0)) {
+      const glideYear = year - (glidepath.retirementYear || 0);
+      stockPct = calculateGlidepath({
+        startStockPct: glidepath.startStockPct,
+        endStockPct: glidepath.endStockPct,
+        glidepathYears: glidepath.glidepathYears,
+        currentYear: glideYear,
+      });
+      bondPct = 1 - stockPct;
+    }
+    const portfolioReturn = (stockReturn * stockPct) + (bondReturn * bondPct);
 
     // Apply investment returns to current portfolio value
     currentNominalValue *= (1 + portfolioReturn);
-    
+
+    // Subtract any spending shocks for this year
+    currentNominalValue -= (spendingShocks?.[year] || 0);
+
     // THEN add annual contribution at the END of the year (growing over time)
     // This ensures contributions don't affect the return calculation
     if (annualContribution > 0) {
@@ -179,8 +194,6 @@ const runSimulationPath = ({
     
     // Store this year's results
     yearlyReturns.push({ portfolio: portfolioReturn, stock: stockReturn, bond: bondReturn, inflation: currentInflation });
-    equityReturnsHistory.push(stockReturn);
-
     // Calculate real (inflation-adjusted) value using the path's dynamic cumulative inflation
     const realValue = currentNominalValue / cumulativeInflation;
 
@@ -197,13 +210,12 @@ const runSimulationPath = ({
   const finalRealValue = realYearlyValues[years];
   
   // Calculate CAGR based on investment returns only (excluding contribution effects)
-  // This gives us the true portfolio performance CAGR
+  // Since both stock and bond returns are REAL, this is a true real CAGR
   const totalPortfolioReturn = yearlyReturns.reduce((product, yearData) => product * (1 + yearData.portfolio), 1);
   const realCAGR = Math.pow(totalPortfolioReturn, 1 / years) - 1;
-  
-  // For nominal CAGR, we need to account for inflation in the returns
-  const totalInflationAdjustment = yearlyReturns.reduce((product, yearData) => product * (1 + yearData.inflation), 1);
-  const nominalCAGR = Math.pow(totalPortfolioReturn * totalInflationAdjustment, 1 / years) - 1;
+
+  // Nominal CAGR uses the input inflation mean, not this path's random inflation
+  const nominalCAGR = (1 + realCAGR) * (1 + inflationParams.mean) - 1;
 
   // Apply a guardrail for long-term returns to prevent unrealistic scenarios
   if (years >= 20 && realCAGR < HISTORICAL_VALIDATION.minLongTermPortfolioReturn) {
@@ -214,7 +226,7 @@ const runSimulationPath = ({
       nominalCAGR: nominalCAGR, // Keep original for analysis
       realCAGR: HISTORICAL_VALIDATION.minLongTermPortfolioReturn,
       wasAdjusted: true,
-      maxDrawdown: Math.max(maxDrawdown, HISTORICAL_VALIDATION.maxDrawdown),
+      maxDrawdown, // Track actual path drawdown (not floored by historical validation)
       nominalYearlyValues,
       realYearlyValues,
       yearlyReturns: yearlyReturns.map(r => r.portfolio),
@@ -227,7 +239,7 @@ const runSimulationPath = ({
     nominalCAGR,
     realCAGR,
     wasAdjusted: false,
-    maxDrawdown: Math.max(maxDrawdown, HISTORICAL_VALIDATION.maxDrawdown),
+    maxDrawdown, // Track actual path drawdown (not floored by historical validation)
     nominalYearlyValues,
     realYearlyValues,
     yearlyReturns: yearlyReturns.map(r => r.portfolio),
@@ -246,13 +258,19 @@ export const runMonteCarloSimulation = ({
   savingsGrowthRate = 0,
   riskProfile = 'balanced',
   numberOfSimulations = 10000,
-  inflationRate, // This is now ignored, as inflation is simulated dynamically
+  inflationRate, // Used as the mean for stochastic inflation (O-U process center)
+  startingAge = 25, // Starting age for time series display
+  glidepath = null, // { startStockPct, endStockPct, glidepathYears, retirementYear }
+  spendingShocks = null, // Array of per-year shock amounts indexed by year
 }) => {
   // Get the asset allocation for the selected risk profile
   const allocation = RISK_PROFILES[riskProfile];
   if (!allocation) {
     throw new Error(`Invalid risk profile: ${riskProfile}`);
   }
+
+  // Use inflationRate as the inflation mean if provided, otherwise engine default (~3%)
+  const inflationMean = inflationRate != null ? inflationRate : undefined;
 
   const allSimulations = [];
   for (let i = 0; i < numberOfSimulations; i++) {
@@ -262,6 +280,9 @@ export const runMonteCarloSimulation = ({
       annualContribution,
       savingsGrowthRate,
       allocation,
+      inflationMean,
+      glidepath,
+      spendingShocks,
     });
     allSimulations.push(path);
   }
@@ -287,7 +308,6 @@ export const runMonteCarloSimulation = ({
   const p90Case = nominalFinalValueSorted[p90Index];
   const p99Case = nominalFinalValueSorted[p99Index];
   const worstAbsoluteCase = nominalFinalValueSorted[0];
-  const absoluteOutlierCase = nominalFinalValueSorted[numberOfSimulations - 1];
 
   // Aggregate statistics
   const avgAnnualReturn = allSimulations.reduce((sum, s) => sum + (s.yearlyReturns.reduce((a, b) => a + b, 0) / s.yearlyReturns.length), 0) / numberOfSimulations;
@@ -307,7 +327,7 @@ export const runMonteCarloSimulation = ({
     timeSeriesData.push({
       year: year,
       portfolioValue: medianCase.realYearlyValues[year] || 0,
-      age: 25 + year // Assume starting age of 25
+      age: startingAge + year,
     });
   }
 
@@ -372,4 +392,78 @@ export const runMonteCarloSimulation = ({
     nominalMedianCAGR: medianCase.nominalCAGR,
     avgAnnualReturn: avgAnnualReturn,
   };
-}; 
+};
+
+/**
+ * Generates correlated return sequences using the full regime/correlation model.
+ * Lightweight version of runSimulationPath — produces only yearly portfolio returns,
+ * skipping portfolio value tracking, contributions, and drawdown calculation.
+ * Includes: bull/bear regimes, stock-bond correlation, O-U inflation, inflation surprise on bonds.
+ */
+export function generateCorrelatedSequences({ years, riskProfile = 'balanced', inflationMean, numSims = 500 }) {
+  const allocation = RISK_PROFILES[riskProfile];
+  if (!allocation) throw new Error(`Invalid risk profile: ${riskProfile}`);
+
+  const { stocks: stockParams, bonds: bondParams, inflation: inflationDefaults } = ASSET_CLASS_PARAMS;
+  const inflationParams = { ...inflationDefaults, mean: inflationMean != null ? inflationMean : inflationDefaults.mean };
+  const { stock_bond: stockBondCorrelation } = CORRELATIONS;
+  const stockDrift = Math.log(1 + stockParams.mean) - 0.5 * stockParams.stdDev ** 2;
+  const bondDrift = Math.log(1 + bondParams.meanReal) - 0.5 * bondParams.stdDev ** 2;
+
+  const allPaths = [];
+
+  for (let s = 0; s < numSims; s++) {
+    const returns = [];
+    let inBullMarket = true;
+    let yearsInCurrentMarket = 0;
+    const bullLen = Math.floor(4 + Math.random() * 4);
+    const bearLen = Math.floor(1 + Math.random() * 2);
+    let consecutiveNeg = 0;
+    let lastInflation = inflationParams.mean;
+
+    for (let y = 0; y < years; y++) {
+      const zStock = generateStandardNormal();
+      const zBondInd = generateStandardNormal();
+      const zInflation = generateStandardNormal();
+      const zBond = stockBondCorrelation * zStock + Math.sqrt(1 - stockBondCorrelation ** 2) * zBondInd;
+
+      const currentInflation = Math.max(-0.02,
+        lastInflation + 0.25 * (inflationParams.mean - lastInflation) + inflationParams.stdDev * zInflation
+      );
+      lastInflation = currentInflation;
+
+      yearsInCurrentMarket++;
+      if (inBullMarket && yearsInCurrentMarket > bullLen) { inBullMarket = false; yearsInCurrentMarket = 1; }
+      else if (!inBullMarket && yearsInCurrentMarket > bearLen) { inBullMarket = true; yearsInCurrentMarket = 1; }
+
+      const regimeAdj = inBullMarket ? 0.005 : -0.005;
+      let stockReturn = Math.exp((stockDrift + regimeAdj) + stockParams.stdDev * zStock) - 1;
+
+      if (consecutiveNeg > 2 && stockReturn < -0.20) { stockReturn = -0.05 - Math.random() * 0.10; consecutiveNeg = 0; }
+      if (stockReturn < -0.15) consecutiveNeg++; else consecutiveNeg = 0;
+      stockReturn = Math.max(-0.50, stockReturn);
+
+      let bondReturn = Math.exp(bondDrift + bondParams.stdDev * zBond) - 1;
+      bondReturn += (currentInflation - inflationParams.mean) * bondParams.inflationSensitivity;
+
+      returns.push(stockReturn * allocation.stocks + bondReturn * (1 - allocation.stocks));
+    }
+    allPaths.push(returns);
+  }
+
+  const endValues = allPaths.map((path, idx) => {
+    let val = 1;
+    for (const r of path) val *= (1 + r);
+    return { idx, val };
+  });
+  endValues.sort((a, b) => a.val - b.val);
+
+  const pick = (pct) => allPaths[endValues[Math.floor(pct * numSims / 100)].idx];
+
+  return {
+    pessimistic: pick(10),
+    median: pick(50),
+    optimistic: pick(90),
+    allPaths,
+  };
+} 

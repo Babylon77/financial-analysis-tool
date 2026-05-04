@@ -23,6 +23,10 @@ router.patch('/subscription', userController.updateSubscription);
 // Usage statistics
 router.get('/usage', userController.getUsage);
 
+// Financial data sync
+router.get('/financial-data', userController.getFinancialData);
+router.put('/financial-data', userController.saveFinancialData);
+
 // Admin only routes
 router.use(restrictTo('admin'));
 

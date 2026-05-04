@@ -4,39 +4,22 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--terminal-bg, #0a0a0a);
+  color: var(--text-primary, #c9d1d9);
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
 }
 
-.MuiPaper-root {
-  background-color: #ffffff;
+*, *::before, *::after {
+  border-color: var(--surface-border, #1a3a1a);
 }
 
-.MuiTableRow-root:hover {
-  background-color: rgba(0, 0, 0, 0.04);
+::selection {
+  background: rgba(0, 255, 65, 0.2);
+  color: var(--terminal-green, #00ff41);
 }
-
-.MuiTableCell-root {
-  font-size: 1rem;
-}
-
-.MuiTableCell-head {
-  font-weight: 600;
-}
-
-.MuiButton-contained {
-  text-transform: none;
-  font-weight: 500;
-}
-
-.MuiTextField-root {
-  background-color: #ffffff;
-} 
