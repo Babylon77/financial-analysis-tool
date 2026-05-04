@@ -4,10 +4,12 @@ import { calculateFlipROI } from '../utils/calculations/flipCalculations';
 import { calculateRentalROI, calculateRemainingLoanBalance } from '../utils/calculations/rentalCalculations';
 
 function formatCurrency(value) {
+  if (!isFinite(value)) return '0';
   return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
 function formatPercent(value) {
+  if (!isFinite(value)) return '0.0';
   return value.toFixed(1);
 }
 
@@ -36,11 +38,11 @@ export function useResultsAnalysis(formData) {
   useEffect(() => {
     if (formData) {
       setSensitivityInputs({
-        purchasePrice: parseFloat(formData.purchasePrice),
-        renovationCost: parseFloat(formData.renovationCost),
-        arv: parseFloat(formData.expectedSellingPrice),
-        holdingPeriod: parseFloat(formData.holdingPeriod),
-        interestRate: parseFloat(formData.interestRate),
+        purchasePrice: parseFloat(formData.purchasePrice) || 0,
+        renovationCost: parseFloat(formData.renovationCost) || 0,
+        arv: parseFloat(formData.expectedSellingPrice) || 0,
+        holdingPeriod: parseFloat(formData.holdingPeriod) || 0,
+        interestRate: parseFloat(formData.interestRate) || 0,
         monthlyRent: parseFloat(formData.expectedMonthlyRent) || 0,
         occupancyRate: parseFloat(formData.occupancyRate) || 65,
         nightlyRate: parseFloat(formData.nightlyRate) || estimateNightlyRate(),
@@ -55,13 +57,13 @@ export function useResultsAnalysis(formData) {
   const flipROI = calculateFlipROI(formData);
   const rentalROI = calculateRentalROI(formData);
 
-  const purchasePrice = sensitivityInputs.purchasePrice || parseFloat(formData.purchasePrice);
+  const purchasePrice = sensitivityInputs.purchasePrice || parseFloat(formData.purchasePrice) || 0;
   const downPaymentPercent = parseFloat(formData.downPayment) || 20;
   const downPayment = (purchasePrice * downPaymentPercent) / 100;
   const loanAmount = purchasePrice - downPayment;
-  const interestRate = sensitivityInputs.interestRate || parseFloat(formData.interestRate);
+  const interestRate = sensitivityInputs.interestRate || parseFloat(formData.interestRate) || 0;
   const monthlyInterestRate = interestRate / 100 / 12;
-  const numberOfPayments = parseFloat(formData.loanTerm) * 12;
+  const numberOfPayments = (parseFloat(formData.loanTerm) || 30) * 12;
   const closingCostPercent = parseFloat(formData.closingCosts) || 3;
   const closingCosts = (purchasePrice * closingCostPercent) / 100;
 
@@ -69,13 +71,14 @@ export function useResultsAnalysis(formData) {
     ? loanAmount * (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, numberOfPayments)) / (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1)
     : loanAmount > 0 ? loanAmount / numberOfPayments : 0;
 
-  const renovationCost = sensitivityInputs.renovationCost || parseFloat(formData.renovationCost);
-  const holdingPeriod = sensitivityInputs.holdingPeriod || parseFloat(formData.holdingPeriod);
-  const monthlyExpenses = parseFloat(formData.monthlyExpenses);
+  const renovationCost = sensitivityInputs.renovationCost || parseFloat(formData.renovationCost) || 0;
+  const holdingPeriod = sensitivityInputs.holdingPeriod || parseFloat(formData.holdingPeriod) || 6;
+  const monthlyExpenses = parseFloat(formData.monthlyExpenses) || 0;
   const totalHoldingCosts = (monthlyPayment + monthlyExpenses) * holdingPeriod;
 
-  const expectedSellingPrice = sensitivityInputs.arv || parseFloat(formData.expectedSellingPrice);
-  const sellingCosts = (expectedSellingPrice * parseFloat(formData.sellingCosts)) / 100;
+  const expectedSellingPrice = sensitivityInputs.arv || parseFloat(formData.expectedSellingPrice) || 0;
+  const sellingCostPercent = parseFloat(formData.sellingCosts) || 6;
+  const sellingCosts = (expectedSellingPrice * sellingCostPercent) / 100;
 
   const totalInvestment = downPayment + renovationCost + closingCosts + totalHoldingCosts;
   const netProfit = expectedSellingPrice - sellingCosts - purchasePrice - renovationCost - closingCosts - totalHoldingCosts;
@@ -83,9 +86,9 @@ export function useResultsAnalysis(formData) {
 
   const arvToPurchaseRatio = expectedSellingPrice / purchasePrice;
   const renovationToArvRatio = (renovationCost / expectedSellingPrice) * 100;
-  const annualizedROI = holdingPeriod > 0
+  const annualizedROI = holdingPeriod > 0 && (1 + roi / 100) > 0
     ? (Math.pow(1 + roi / 100, 12 / holdingPeriod) - 1) * 100
-    : 0;
+    : holdingPeriod > 0 ? -100 : 0;
 
   // LTR calculations
   const monthlyRent = sensitivityInputs.monthlyRent || parseFloat(formData.expectedMonthlyRent) || 0;
@@ -140,7 +143,7 @@ export function useResultsAnalysis(formData) {
   const remainingLoanBalance = calculateRemainingLoanBalance(loanAmount, monthlyInterestRate, numberOfPayments, 5 * 12);
   const loanPaydown = loanAmount - remainingLoanBalance;
 
-  const futureSellingCosts = futureValue * parseFloat(formData.sellingCosts) / 100;
+  const futureSellingCosts = futureValue * sellingCostPercent / 100;
   const initialInvestment = downPayment + renovationCost + closingCosts;
   const rentalProfit = (annualCashFlow * 5) + appreciationProfit + loanPaydown - futureSellingCosts;
   const rentalROIValue = initialInvestment > 0 ? (rentalProfit / initialInvestment) * 100 : 0;
@@ -149,8 +152,12 @@ export function useResultsAnalysis(formData) {
   const strTotalProfit = (annualStrCashFlow * 5) + appreciationProfit + loanPaydown - futureSellingCosts;
   const strTotalROI = initialInvestment > 0 ? (strTotalProfit / initialInvestment) * 100 : 0;
 
-  const ltrTotalROIAnnualized = (Math.pow(1 + rentalROIValue / 100, 1 / 5) - 1) * 100;
-  const strTotalROIAnnualized = (Math.pow(1 + strTotalROI / 100, 1 / 5) - 1) * 100;
+  const ltrTotalROIAnnualized = (1 + rentalROIValue / 100) > 0
+    ? (Math.pow(1 + rentalROIValue / 100, 1 / 5) - 1) * 100
+    : -100;
+  const strTotalROIAnnualized = (1 + strTotalROI / 100) > 0
+    ? (Math.pow(1 + strTotalROI / 100, 1 / 5) - 1) * 100
+    : -100;
 
   const monthlyCashFlow = annualCashFlow / 12;
   const capRate = (effectiveAnnualRent - totalAnnualExpenses) / purchasePrice * 100;

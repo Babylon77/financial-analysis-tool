@@ -59,7 +59,9 @@ export function calculateRentalROI(formData) {
   const initialInvestment = downPayment + renovationCost + closingCosts;
   const totalProfit = totalCashFlow + appreciationProfit + principalPaydown - futureSellingCosts;
   const totalROI = initialInvestment > 0 ? (totalProfit / initialInvestment) * 100 : 0;
-  const annualizedROI = (Math.pow(1 + totalROI / 100, 1 / yearsToHold) - 1) * 100;
+  const annualizedROI = (1 + totalROI / 100) > 0
+    ? (Math.pow(1 + totalROI / 100, 1 / yearsToHold) - 1) * 100
+    : -100;
 
   return annualizedROI;
 }
