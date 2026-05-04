@@ -195,15 +195,18 @@ const runSimulationPath = ({
     
     // Store this year's results
     yearlyReturns.push({ portfolio: portfolioReturn, stock: stockReturn, bond: bondReturn, inflation: currentInflation });
-    // Calculate real (inflation-adjusted) value using the path's dynamic cumulative inflation
-    const realValue = currentNominalValue / cumulativeInflation;
 
-    // Update drawdown
-    peakValue = Math.max(peakValue, currentNominalValue);
-    maxDrawdown = Math.min(maxDrawdown, (currentNominalValue - peakValue) / peakValue);
-    
-    nominalYearlyValues.push(currentNominalValue);
+    // currentNominalValue tracks real purchasing power (real returns + real contributions).
+    // Nominal = what you'd see in your brokerage (real value * cumulative price inflation).
+    const realValue = currentNominalValue;
+    const nominalValue = currentNominalValue * cumulativeInflation;
+
+    // Update drawdown (tracked in real terms)
+    peakValue = Math.max(peakValue, realValue);
+    maxDrawdown = Math.min(maxDrawdown, (realValue - peakValue) / peakValue);
+
     realYearlyValues.push(realValue);
+    nominalYearlyValues.push(nominalValue);
   }
   
   // Final calculations for the path
@@ -289,7 +292,8 @@ export const runMonteCarloSimulation = ({
   }
 
   // --- AGGREGATE RESULTS ---
-  const nominalFinalValueSorted = [...allSimulations].sort((a, b) => a.finalNominalValue - b.finalNominalValue);
+  // Sort by real final value (purchasing power) for percentile selection
+  const nominalFinalValueSorted = [...allSimulations].sort((a, b) => a.finalRealValue - b.finalRealValue);
   const drawdownSorted = [...allSimulations].sort((a, b) => a.maxDrawdown - b.maxDrawdown);
   
   // Calculate percentile paths
@@ -343,7 +347,7 @@ export const runMonteCarloSimulation = ({
     nominalWorstPath: p1Case.nominalYearlyValues,
     nominalBestPath: p99Case.nominalYearlyValues,
     
-    worstDrawdownPath: drawdownSorted[0].nominalYearlyValues,
+    worstDrawdownPath: drawdownSorted[0].realYearlyValues,
     allPaths,
     timeSeriesData,
     
@@ -392,6 +396,16 @@ export const runMonteCarloSimulation = ({
     medianCAGR: medianCase.realCAGR,
     nominalMedianCAGR: medianCase.nominalCAGR,
     avgAnnualReturn: avgAnnualReturn,
+
+    percentileCAGRs: {
+      p1: p1Case.realCAGR,
+      p10: p10Case.realCAGR,
+      p25: p25Case.realCAGR,
+      p50: medianCase.realCAGR,
+      p75: p75Case.realCAGR,
+      p90: p90Case.realCAGR,
+      p99: p99Case.realCAGR,
+    },
   };
 };
 

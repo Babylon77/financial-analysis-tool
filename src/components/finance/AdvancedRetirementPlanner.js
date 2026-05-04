@@ -3,7 +3,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, ReferenceLine
 } from 'recharts';
-import { runMonteCarloSimulation, RISK_PROFILES } from '../../utils/monteCarloSimulation';
+import { runMonteCarloSimulation, RISK_PROFILES, ASSET_CLASS_PARAMS, CORRELATIONS } from '../../utils/monteCarloSimulation';
 import { formatCurrency } from '../../utils/formatters';
 import MoneyInput from '../MoneyInput';
 import { useFinancialPlan, DEFAULT_DRAWDOWN_PHASES } from '../../context/FinancialPlanContext';
@@ -162,24 +162,26 @@ const AdvancedRetirementPlanner = () => {
     });
   }, [selectedHeatmapAge]);
 
-  const getReturnSequence = useCallback((scenario, length) => {
-    if (!mcResults?.yearlyReturns) return Array(length).fill(expectedReturn / 100);
-    const yr = mcResults.yearlyReturns;
-    const map = {
-      best: yr.p99 || yr.best || yr.p90 || yr.median,
-      optimistic: yr.p90 || yr.optimistic || yr.median,
-      median: yr.median,
-      pessimistic: yr.p10 || yr.median,
-      worst: yr.p1 || yr.worst || yr.median,
-    };
-    let seq = map[scenario] || yr.median || [];
-    if (!seq || seq.length === 0) return Array(length).fill(expectedReturn / 100);
-    if (seq.length < length) {
-      const last = seq[seq.length - 1];
-      seq = [...seq, ...Array(length - seq.length).fill(last)];
+  const getScenarioReturn = useCallback((scenario) => {
+    const cagrMap = { best: 'p99', optimistic: 'p90', median: 'p50', pessimistic: 'p10', worst: 'p1' };
+
+    if (mcResults?.percentileCAGRs) {
+      const key = cagrMap[scenario] || 'p50';
+      return mcResults.percentileCAGRs[key] ?? expectedReturn / 100;
     }
-    return seq.slice(0, length);
-  }, [mcResults, expectedReturn]);
+
+    const profile = RISK_PROFILES[riskProfile] || RISK_PROFILES['balanced'];
+    const { stocks: sp, bonds: bp } = ASSET_CLASS_PARAMS;
+    const portMean = profile.stocks * sp.mean + profile.bonds * bp.meanReal;
+    const portVar = (profile.stocks * sp.stdDev) ** 2 + (profile.bonds * bp.stdDev) ** 2 +
+      2 * profile.stocks * profile.bonds * CORRELATIONS.stock_bond * sp.stdDev * bp.stdDev;
+    const geoMean = portMean - 0.5 * portVar;
+    const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
+    const years = Math.max(1, selectedHeatmapAge - currentAge);
+    const cagrVol = Math.sqrt(portVar) / Math.sqrt(years);
+    const z = { best: 2.33, optimistic: 1.28, median: 0, pessimistic: -1.28, worst: -2.33 };
+    return geoMean + (z[scenario] || 0) * cagrVol;
+  }, [mcResults, expectedReturn, riskProfile, scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge, selectedHeatmapAge]);
 
   const annualSpending = planState.profile.annualSpending || 80000;
 
@@ -188,7 +190,7 @@ const AdvancedRetirementPlanner = () => {
     const totalYears = selectedHeatmapAge - currentAge;
     if (totalYears <= 0) return { portfolioValue: scenarioData.currentNetWorth, isViable: true };
 
-    const returnSeq = getReturnSequence(monteCarloScenario, totalYears);
+    const r = getScenarioReturn(monteCarloScenario);
     let portfolio = scenarioData.currentNetWorth;
     const laterRet = Math.max(s1RetAge, s2RetAge);
 
@@ -209,17 +211,15 @@ const AdvancedRetirementPlanner = () => {
         }
       });
 
-      // Retired but no drawdown phase covers this year — still need to spend
       if (s1Retired && s2Retired && !hasPhaseSpending) {
         net -= annualSpending;
       }
 
-      const r = returnSeq[Math.min(year - 1, returnSeq.length - 1)] || expectedReturn / 100;
       portfolio = portfolio * (1 + r) + net;
     }
 
     return { portfolioValue: portfolio, isViable: portfolio > 0 };
-  }, [scenarioData, selectedHeatmapAge, monteCarloScenario, getReturnSequence, expectedReturn, annualSpending]);
+  }, [scenarioData, selectedHeatmapAge, monteCarloScenario, getScenarioReturn, annualSpending]);
 
   const generateHeatmap = useCallback(() => {
     setIsCalculating(true);
@@ -304,8 +304,8 @@ const AdvancedRetirementPlanner = () => {
     if (years <= 0) return [];
 
     const scenarios = ['best', 'optimistic', 'median', 'pessimistic', 'worst'];
-    const seqs = {};
-    scenarios.forEach(sc => { seqs[sc] = getReturnSequence(sc, years); });
+    const scenarioReturns = {};
+    scenarios.forEach(sc => { scenarioReturns[sc] = getScenarioReturn(sc); });
     const laterRet = Math.max(scenarioData.spouse1RetirementAge, scenarioData.spouse2RetirementAge);
 
     const data = [{ age: currentAge, year: 0, best: scenarioData.currentNetWorth, optimistic: scenarioData.currentNetWorth, median: scenarioData.currentNetWorth, pessimistic: scenarioData.currentNetWorth, worst: scenarioData.currentNetWorth }];
@@ -333,13 +333,12 @@ const AdvancedRetirementPlanner = () => {
       const prev = data[year - 1];
       const row = { age, year };
       scenarios.forEach(sc => {
-        const r = seqs[sc][Math.min(year - 1, seqs[sc].length - 1)] || expectedReturn / 100;
-        row[sc] = prev[sc] * (1 + r) + net;
+        row[sc] = prev[sc] * (1 + scenarioReturns[sc]) + net;
       });
       data.push(row);
     }
     return data;
-  }, [scenarioData, selectedHeatmapAge, getReturnSequence, expectedReturn, annualSpending]);
+  }, [scenarioData, selectedHeatmapAge, getScenarioReturn, annualSpending]);
 
   const heatmapGrid = useMemo(() => {
     if (heatmapData.length === 0) return null;
