@@ -15,6 +15,7 @@ import { analyzeClaimingAges, calculateBreakEven, getFullRetirementAge } from '.
 import { MEDICARE_IRMAA, STANDARD_DEDUCTION, RMD_TABLE } from '../utils/constants/taxConstants';
 import { useFinancialPlan } from '../context/FinancialPlanContext';
 import { RISK_PROFILES, generateCorrelatedSequences } from '../utils/monteCarloSimulation';
+import InfoButton from '../components/common/InfoButton';
 
 const CHART_GREEN = '#00ff41';
 const CHART_CYAN = '#00d4ff';
@@ -662,12 +663,12 @@ export default function SpendDown() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             <InputField label="Current Age" value={profile.spouse1.currentAge} onChange={v => updateProfile({ spouse1: { currentAge: parseNum(v) } })} />
             <InputField label="Retirement Age" value={profile.spouse1.retirementAge} onChange={v => updateProfile({ spouse1: { retirementAge: parseNum(v) } })} />
-            <InputField label="Life Expectancy" value={profile.lifeExpectancy} onChange={v => updateProfile({ lifeExpectancy: parseNum(v) })} />
+            <InputField label={<>Life Expectancy<InfoButton text="Plan to at least age 90-95. Running out of money at 88 is worse than leaving extra at 95. Use SSA actuarial tables or add 5-10 years to average life expectancy for safety margin." /></>} value={profile.lifeExpectancy} onChange={v => updateProfile({ lifeExpectancy: parseNum(v) })} />
             <SelectField label="Filing Status" value={profile.filingStatus} onChange={v => updateProfile({ filingStatus: v })} options={FILING_STATUSES} />
-            <SelectField label="Portfolio Allocation" value={riskProfile} onChange={v => dispatch({ type: 'SET_SIMULATION_CONFIG', payload: { riskProfile: v } })} options={RISK_PROFILE_OPTIONS} />
-            <InputField label="Annual Retirement Spending" value={profile.annualSpending} onChange={v => updateProfile({ annualSpending: parseNum(v) })} prefix="$" />
-            <InputField label="SS Benefit at FRA (Spouse 1)" value={profile.ss1} onChange={v => updateProfile({ ss1: parseNum(v) })} prefix="$" />
-            <InputField label="SS Benefit at FRA (Spouse 2)" value={profile.ss2} onChange={v => updateProfile({ ss2: parseNum(v) })} prefix="$" />
+            <SelectField label={<>Portfolio Allocation<InfoButton text="Your stock/bond mix determines expected returns and volatility. Conservative (30/70) has lower returns but smaller drawdowns. Aggressive (100/0) has higher expected returns but can drop 50%+ in a crash. Most retirees use 40-60% stocks." /></>} value={riskProfile} onChange={v => dispatch({ type: 'SET_SIMULATION_CONFIG', payload: { riskProfile: v } })} options={RISK_PROFILE_OPTIONS} />
+            <InputField label={<>Annual Retirement Spending<InfoButton text="Your target annual spending in today's dollars. This is the amount each withdrawal strategy tries to deliver. Include housing, food, healthcare, travel, and discretionary spending. Exclude Social Security and pension income — those are modeled separately as an income bridge." /></>} value={profile.annualSpending} onChange={v => updateProfile({ annualSpending: parseNum(v) })} prefix="$" />
+            <InputField label={<>SS Benefit at FRA (Spouse 1)<InfoButton text="Your monthly Social Security benefit at Full Retirement Age (FRA), typically 67. Find this on your SSA statement at ssa.gov/myaccount. Claiming early (62) reduces it ~30%; delaying to 70 increases it ~24%. The optimizer below analyzes all claiming ages." /></>} value={profile.ss1} onChange={v => updateProfile({ ss1: parseNum(v) })} prefix="$" />
+            <InputField label={<>SS Benefit at FRA (Spouse 2)<InfoButton text="Spouse 2's monthly benefit at Full Retirement Age. If Spouse 2 has limited work history, they may be eligible for a spousal benefit (up to 50% of the higher earner's FRA benefit)." /></>} value={profile.ss2} onChange={v => updateProfile({ ss2: parseNum(v) })} prefix="$" />
             <InputField label="Pension Income (Annual)" value={profile.pension1?.annualAmount || 0} onChange={v => updateProfile({ pension1: { annualAmount: parseNum(v) } })} prefix="$" />
           </div>
 
@@ -721,7 +722,7 @@ export default function SpendDown() {
               <div className="terminal-card p-5 mb-6">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                   <div className="bg-surface-elevated rounded p-3">
-                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Portfolio at Retirement</p>
+                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Portfolio at Retirement<InfoButton text="Your projected total portfolio value at your retirement age, based on current balances growing at your expected return rate with annual savings contributions." /></p>
                     <p className="text-terminal-green text-lg font-bold font-mono">{formatCurrency(projectedPortfolio)}</p>
                   </div>
                   <div className="bg-surface-elevated rounded p-3">
@@ -729,7 +730,7 @@ export default function SpendDown() {
                     <p className="text-txt-primary text-lg font-bold font-mono">{formatCurrency(spending)}</p>
                   </div>
                   <div className="bg-surface-elevated rounded p-3">
-                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Initial Withdrawal Rate</p>
+                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Initial Withdrawal Rate<InfoButton text="Your annual spending divided by portfolio value. The classic '4% rule' (Bengen 1994) found that a 4% initial rate survived 30 years in all historical periods. Longer retirements or higher equity allocations may need lower rates." /></p>
                     <p className={`text-lg font-bold font-mono ${spending / projectedPortfolio > 0.04 ? 'text-terminal-amber' : 'text-terminal-green'}`}>
                       {((spending / projectedPortfolio) * 100).toFixed(2)}%
                     </p>
@@ -742,7 +743,7 @@ export default function SpendDown() {
 
                 {avgRetirementIncome > 0 && (
                   <div className="mb-6 rounded border border-terminal-dark-green bg-terminal-dark-green/5 p-4">
-                    <h4 className="text-terminal-green text-xs font-mono uppercase tracking-wider font-bold mb-2">Income Bridge Factored In</h4>
+                    <h4 className="text-terminal-green text-xs font-mono uppercase tracking-wider font-bold mb-2">Income Bridge Factored In<InfoButton text="The income bridge models how Social Security and pension income reduce the amount you need to withdraw from your portfolio each year. Before these income sources start, your portfolio bears the full spending load. After they kick in, portfolio withdrawals drop significantly, extending portfolio longevity." wide /></h4>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
                       {(profile.ss1 > 0 || profile.ss2 > 0) && (
                         <div>
@@ -790,6 +791,18 @@ export default function SpendDown() {
                       <Line type="monotone" dataKey={WITHDRAWAL_STRATEGY_LABELS.vanguard_dynamic} stroke={CHART_TEAL} dot={false} strokeWidth={2} />
                     </LineChart>
                   </ResponsiveContainer>
+                </div>
+                <div className="mb-4 p-3 rounded border border-surface-border bg-surface-elevated/30">
+                  <h4 className="text-terminal-amber text-xs font-mono uppercase tracking-wider font-bold mb-2">Strategy Guide</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[11px] font-mono text-txt-secondary">
+                    <p><span className="text-terminal-green font-bold">Fixed Dollar</span> — Withdraw a set amount each year regardless of market performance. Simple and predictable, but rigid.</p>
+                    <p><span className="text-terminal-green font-bold">Percent of Portfolio</span> — Withdraw a fixed percentage of your current balance. Spending adjusts with market, so you never fully deplete.</p>
+                    <p><span className="text-terminal-green font-bold">Guardrails (Guyton-Klinger)</span> — Start with a target amount, then apply rules: skip inflation raises after down years, cut 10% if rate exceeds ceiling, raise 10% if below floor.</p>
+                    <p><span className="text-terminal-green font-bold">Bucket Strategy</span> — Split portfolio into cash (1-2yr), income (3-7yr), and growth (8+yr) buckets. Spend from cash while growth bucket recovers from downturns.</p>
+                    <p><span className="text-terminal-green font-bold">Variable Percentage (VPW)</span> — Actuarial formula that adjusts withdrawal rate based on remaining life expectancy. Spends more early, less later. Never depletes by design.</p>
+                    <p><span className="text-terminal-green font-bold">RMD-Based</span> — Follows IRS Required Minimum Distribution divisor tables. Withdrawals increase as a percentage of portfolio with age. Mandatory from Traditional accounts at 73+.</p>
+                    <p><span className="text-terminal-green font-bold">Vanguard Dynamic</span> — Targets a fixed percentage but applies floor (-2.5%) and ceiling (+5%) limits to year-over-year changes. Smooths spending volatility.</p>
+                  </div>
                 </div>
                 <DataTable
                   columns={[
@@ -848,7 +861,7 @@ export default function SpendDown() {
 
                 {/* Max Safe Spending Comparison */}
                 <h4 className="font-display font-semibold text-terminal-amber uppercase tracking-wider text-sm mb-3">
-                  Maximum Safe Spending by Strategy (95% Success)
+                  Maximum Safe Spending by Strategy (95% Success)<InfoButton text="The highest initial annual spending where your portfolio survives your full retirement in at least 95% of the 1,000 Monte Carlo simulations. Higher is better. Adaptive strategies (Guardrails, Vanguard) typically allow higher safe rates because they cut spending during downturns." wide />
                 </h4>
                 <p className="text-txt-secondary text-xs mb-3 font-mono">
                   The highest initial spending where at least 95% of simulations survive your full retirement.
@@ -883,24 +896,24 @@ export default function SpendDown() {
                 <DataTable
                   columns={[
                     { label: 'Strategy', key: 'label', className: 'text-terminal-green font-bold' },
-                    { label: 'Survival Rate', render: r => (
+                    { label: <>Survival Rate<InfoButton text="Percentage of simulations where your portfolio lasted your entire retirement. 95%+ is the gold standard. Below 80% is risky." /></>, render: r => (
                       <span className={r.successRate >= 0.95 ? 'text-terminal-green' : r.successRate >= 0.80 ? 'text-terminal-amber' : 'text-terminal-red'}>
                         {r.neverDepletes ? '100%' : (r.successRate * 100).toFixed(1) + '%'}
                       </span>
                     )},
-                    { label: 'Worst-Case Floor', render: r => (
+                    { label: <>Worst-Case Floor<InfoButton text="The minimum annual withdrawal in the 10th-percentile scenario (bad luck). For adaptive strategies, this shows how low spending could drop in a prolonged downturn. Red if below 50% of your target." /></>, render: r => (
                       <span className={r.p10MinWithdrawal < spending * 0.5 ? 'text-terminal-red' : 'text-txt-primary'}>
                         {formatCurrency(r.p10MinWithdrawal)}
                       </span>
                     ), className: 'text-txt-primary' },
-                    { label: 'Median Lifetime Total', render: r => formatCurrency(r.medianTotalSpending) },
+                    { label: <>Median Lifetime Total<InfoButton text="Total amount withdrawn over your full retirement in the median (50th percentile) simulation. Higher means more total spending power, but compare with survival rate — some strategies spend more but risk depletion." wide /></>, render: r => formatCurrency(r.medianTotalSpending) },
                   ]}
                   rows={survivalAnalysis.strategies}
                 />
 
                 {/* Success Rate Curve */}
                 <h4 className="font-display font-semibold text-terminal-amber uppercase tracking-wider text-sm mb-3 mt-6">
-                  Fixed-Dollar Success Rate Curve
+                  Fixed-Dollar Success Rate Curve<InfoButton text="Shows the survival probability at every withdrawal rate for the fixed-dollar strategy. The curve drops steeply around the safe withdrawal rate. Find where it crosses 95% to see the maximum safe rate for your retirement span and allocation." wide />
                 </h4>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
@@ -962,7 +975,7 @@ export default function SpendDown() {
             </div>
 
             {/* Section 3: RMD Projections */}
-            <SectionHeading>Required Minimum Distributions</SectionHeading>
+            <SectionHeading>Required Minimum Distributions<InfoButton text="The IRS requires you to withdraw a minimum amount from Traditional 401(k) and IRA accounts starting at age 73 (75 if born after 1960). The amount is calculated by dividing your account balance by a life expectancy divisor from IRS tables. RMDs are taxed as ordinary income and can push you into higher brackets or trigger IRMAA surcharges." wide /></SectionHeading>
             {rmdData.length > 0 ? (
               <div className="terminal-card p-5 mb-6">
                 <p className="text-txt-secondary text-xs font-mono mb-3">
@@ -987,7 +1000,7 @@ export default function SpendDown() {
             )}
 
             {/* Section 4: Roth Conversion Ladder */}
-            <SectionHeading>Roth Conversion Ladder</SectionHeading>
+            <SectionHeading>Roth Conversion Ladder<InfoButton text="A strategy to move money from Traditional (pre-tax) accounts to Roth (tax-free) accounts over several years. You pay income tax on each conversion, but future growth and withdrawals are tax-free. Best done in low-income years (early retirement, before SS starts) to fill low tax brackets. Reduces future RMDs and can lower lifetime taxes." wide /></SectionHeading>
             {rothLadderData ? (
               <div className="terminal-card p-5 mb-6">
                 <p className="text-txt-secondary text-xs font-mono mb-4">
@@ -996,13 +1009,13 @@ export default function SpendDown() {
                 </p>
                 <div className={`grid grid-cols-1 sm:grid-cols-3 ${rothLadderData.ladder.totalIrmaaImpact > 0 ? 'lg:grid-cols-4' : ''} gap-4 mb-6`}>
                   <div className="bg-surface-elevated rounded p-3">
-                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Marginal Rate at Retirement</p>
+                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Marginal Rate at Retirement<InfoButton text="The tax rate on your next dollar of income at retirement. Roth conversions are most valuable when your current marginal rate is lower than your expected future rate." /></p>
                     <p className="text-terminal-amber text-xl font-bold font-mono">
                       {(rothLadderData.conversionInfo.currentMarginalRate * 100).toFixed(0)}%
                     </p>
                   </div>
                   <div className="bg-surface-elevated rounded p-3">
-                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Optimal Annual Conversion</p>
+                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Optimal Annual Conversion<InfoButton text="The amount to convert each year to fill your current tax bracket without jumping to the next one. Converts enough to minimize lifetime taxes while staying below IRMAA thresholds." /></p>
                     <p className="text-terminal-green text-xl font-bold font-mono">
                       {formatCurrency(rothLadderData.conversionInfo.optimalConversion)}
                     </p>
@@ -1015,7 +1028,7 @@ export default function SpendDown() {
                   </div>
                   {rothLadderData.ladder.totalIrmaaImpact > 0 && (
                     <div className="bg-surface-elevated rounded p-3 border border-terminal-amber/30">
-                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Total IRMAA Impact</p>
+                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Total IRMAA Impact<InfoButton text="IRMAA (Income-Related Monthly Adjustment Amount) is a Medicare surcharge for higher earners. If Roth conversions push your MAGI above certain thresholds, you'll pay extra for Medicare Part B and D premiums. This shows the total surcharge cost across all conversion years." wide /></p>
                       <p className="text-terminal-amber text-xl font-bold font-mono">
                         {formatCurrency(rothLadderData.ladder.totalIrmaaImpact)}
                       </p>
@@ -1048,7 +1061,7 @@ export default function SpendDown() {
                       { label: 'Roth Balance', render: r => (
                         <span className="text-terminal-green">{formatCurrency(r.rothBalance)}</span>
                       )},
-                      { label: 'Penalty-Free Roth', render: r => formatCurrency(r.penaltyFreeRothBalance) },
+                      { label: <>Penalty-Free Roth<InfoButton text="Roth conversions have a 5-year waiting period before earnings can be withdrawn tax/penalty-free. This column shows how much of your Roth balance is past the 5-year window and fully accessible. Roth contributions (not conversions) are always accessible." /></>, render: r => formatCurrency(r.penaltyFreeRothBalance) },
                       { label: 'IRMAA Impact', render: r => (
                         <span className={r.estimatedIrmaaImpact > 0 ? 'text-terminal-amber font-bold' : 'text-txt-muted'}>
                           {r.estimatedIrmaaImpact > 0 ? formatCurrency(r.estimatedIrmaaImpact) : '—'}
@@ -1066,7 +1079,7 @@ export default function SpendDown() {
             )}
 
             {/* Section 5: Social Security Optimizer */}
-            <SectionHeading>Social Security Optimizer</SectionHeading>
+            <SectionHeading>Social Security Optimizer<InfoButton text="Analyzes the trade-off between claiming early (smaller monthly check, more years of payments) vs. delaying (larger check, fewer years). The optimal age depends on life expectancy, tax situation, and other income sources. The break-even age shows when the larger delayed benefit catches up in total lifetime payouts." wide /></SectionHeading>
             {ssData && (ssData.spouse1 || ssData.spouse2) ? (
               <div className="terminal-card p-5 mb-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1120,7 +1133,7 @@ export default function SpendDown() {
                 {ssData.breakEven62v67 && (
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-surface-elevated rounded p-3">
-                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Break-Even: 62 vs 67</p>
+                      <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Break-Even: 62 vs 67<InfoButton text="The age at which total lifetime benefits from claiming at 67 surpass total benefits from claiming at 62. If you live past this age, delaying was the better choice." /></p>
                       <p className="text-terminal-amber text-lg font-bold font-mono">
                         {ssData.breakEven62v67.breakEvenAge ? `Age ${ssData.breakEven62v67.breakEvenAge}` : 'Never'}
                       </p>
@@ -1143,7 +1156,7 @@ export default function SpendDown() {
             )}
 
             {/* Section 6: Tax Bracket Management */}
-            <SectionHeading>Tax Bracket Management</SectionHeading>
+            <SectionHeading>Tax Bracket Management<InfoButton text="Shows your estimated tax situation in retirement. Income sources (SS, pension, withdrawals) stack up to fill tax brackets. Understanding your marginal rate helps optimize Roth conversions, withdrawal sequencing, and charitable giving." wide /></SectionHeading>
             {taxData && (
               <div className="terminal-card p-5 mb-6">
                 <p className="text-txt-muted text-xs font-mono mb-4">
@@ -1158,13 +1171,13 @@ export default function SpendDown() {
                     <p className="text-txt-primary text-lg font-bold font-mono">{formatCurrency(taxData.retirementIncome)}</p>
                   </div>
                   <div className="bg-surface-elevated rounded p-3">
-                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Marginal Bracket</p>
+                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Marginal Bracket<InfoButton text="The tax rate on your next dollar of income. This is NOT your overall tax rate — it's the rate on additional income (like a Roth conversion or extra withdrawal). Key for deciding whether to convert, harvest gains, or defer income." /></p>
                     <p className="text-terminal-amber text-lg font-bold font-mono">
                       {(taxData.marginalInfo.marginalRate * 100).toFixed(0)}%
                     </p>
                   </div>
                   <div className="bg-surface-elevated rounded p-3">
-                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Effective Rate</p>
+                    <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">Effective Rate<InfoButton text="Your total federal tax divided by total income. This is your actual average tax rate across all brackets. Typically much lower than your marginal rate because lower brackets are taxed at lower rates first." /></p>
                     <p className="text-terminal-cyan text-lg font-bold font-mono">
                       {(taxData.taxResult.effectiveRate * 100).toFixed(1)}%
                     </p>
@@ -1205,7 +1218,7 @@ export default function SpendDown() {
                 {taxData.conversionSpace !== null && (
                   <div className="bg-surface-elevated rounded p-3 mb-4">
                     <p className="text-txt-secondary text-xs uppercase tracking-wider font-mono">
-                      Roth Conversion Space (to Next Bracket)
+                      Roth Conversion Space (to Next Bracket)<InfoButton text="How much additional income (via Roth conversions) you can add before jumping to the next tax bracket. Fill this space with conversions to optimize your tax bracket utilization without paying higher marginal rates." />
                     </p>
                     <p className="text-terminal-green text-xl font-bold font-mono">
                       {formatCurrency(taxData.conversionSpace)}

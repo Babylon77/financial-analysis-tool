@@ -5,8 +5,20 @@ import {
 } from 'recharts';
 import { runMonteCarloSimulation, RISK_PROFILES, ASSET_CLASS_PARAMS, CORRELATIONS } from '../../utils/monteCarloSimulation';
 import { formatCurrency } from '../../utils/formatters';
+import { RMD_TABLE } from '../../utils/constants/taxConstants';
 import MoneyInput from '../MoneyInput';
 import { useFinancialPlan, DEFAULT_DRAWDOWN_PHASES } from '../../context/FinancialPlanContext';
+import InfoButton from '../common/InfoButton';
+
+const SPEND_DOWN_STRATEGIES = [
+  { value: 'phases', label: 'Fixed Phases (Custom)' },
+  { value: 'fixed', label: 'Fixed Dollar' },
+  { value: 'percent', label: 'Percent of Portfolio (4%)' },
+  { value: 'guardrails', label: 'Guardrails (Guyton-Klinger)' },
+  { value: 'vpw', label: 'Variable Percentage (VPW)' },
+  { value: 'rmd', label: 'RMD-Based' },
+  { value: 'vanguard', label: 'Vanguard Dynamic' },
+];
 
 function SelectField({ label, value, onChange, children, hint }) {
   return (
@@ -106,6 +118,7 @@ const AdvancedRetirementPlanner = () => {
   const [isRerunningMC, setIsRerunningMC] = useState(false);
   const [showDrawdown, setShowDrawdown] = useState(false);
   const [hoveredCell, setHoveredCell] = useState(null);
+  const [spendStrategy, setSpendStrategy] = useState('phases');
 
   useEffect(() => {
     dispatch({ type: 'SET_PROFILE', payload: {
@@ -162,14 +175,7 @@ const AdvancedRetirementPlanner = () => {
     });
   }, [selectedHeatmapAge]);
 
-  const getScenarioReturn = useCallback((scenario) => {
-    const cagrMap = { best: 'p99', optimistic: 'p90', median: 'p50', pessimistic: 'p10', worst: 'p1' };
-
-    if (mcResults?.percentileCAGRs) {
-      const key = cagrMap[scenario] || 'p50';
-      return mcResults.percentileCAGRs[key] ?? expectedReturn / 100;
-    }
-
+  const getTheoreticalCAGR = useCallback((scenario) => {
     const profile = RISK_PROFILES[riskProfile] || RISK_PROFILES['balanced'];
     const { stocks: sp, bonds: bp } = ASSET_CLASS_PARAMS;
     const portMean = profile.stocks * sp.mean + profile.bonds * bp.meanReal;
@@ -181,9 +187,79 @@ const AdvancedRetirementPlanner = () => {
     const cagrVol = Math.sqrt(portVar) / Math.sqrt(years);
     const z = { best: 2.33, optimistic: 1.28, median: 0, pessimistic: -1.28, worst: -2.33 };
     return geoMean + (z[scenario] || 0) * cagrVol;
-  }, [mcResults, expectedReturn, riskProfile, scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge, selectedHeatmapAge]);
+  }, [riskProfile, scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge, selectedHeatmapAge]);
+
+  const getScenarioReturn = useCallback((scenario) => {
+    return getTheoreticalCAGR(scenario);
+  }, [getTheoreticalCAGR]);
+
+  const getScenarioReturnSequence = useCallback((scenario, numYears) => {
+    const targetCAGR = getTheoreticalCAGR(scenario);
+    const medianReturns = mcResults?.yearlyReturns?.median;
+
+    if (!medianReturns || medianReturns.length === 0) {
+      return new Array(numYears).fill(targetCAGR);
+    }
+
+    const medianCAGR = Math.pow(
+      medianReturns.reduce((prod, r) => prod * (1 + r), 1),
+      1 / medianReturns.length
+    ) - 1;
+
+    const scaleFactor = (1 + targetCAGR) / (1 + medianCAGR);
+
+    return Array.from({ length: numYears }, (_, i) => {
+      const baseReturn = medianReturns[i % medianReturns.length];
+      return (1 + baseReturn) * scaleFactor - 1;
+    });
+  }, [mcResults, getTheoreticalCAGR]);
 
   const annualSpending = planState.profile.annualSpending || 80000;
+  const withdrawalRate = 0.04;
+
+  const computeWithdrawal = useCallback((strategy, { portfolioValue, age, retirementAge, lifeExpectancy, yearInRetirement, prevWithdrawal, prevReturn }) => {
+    if (portfolioValue <= 0) return 0;
+    switch (strategy) {
+      case 'fixed':
+        return annualSpending;
+      case 'percent':
+        return portfolioValue * withdrawalRate;
+      case 'guardrails': {
+        let wd = yearInRetirement === 0 ? annualSpending : (prevWithdrawal || annualSpending);
+        if (yearInRetirement > 0 && prevReturn < 0) {
+          // Skip inflation raise after down year (returns are real, so no raise = flat)
+        }
+        const rate = wd / portfolioValue;
+        const upper = withdrawalRate * 1.2;
+        const lower = withdrawalRate * 0.8;
+        if (rate > upper && yearInRetirement > 0) wd *= 0.9;
+        else if (rate < lower && yearInRetirement > 0) wd *= 1.1;
+        return Math.min(wd, portfolioValue);
+      }
+      case 'vpw': {
+        const remaining = Math.max(1, lifeExpectancy - age);
+        const realReturn = (RISK_PROFILES[riskProfile]?.meanReturn || 5.5) / 100;
+        if (realReturn === 0) return portfolioValue / remaining;
+        const rate = realReturn / (1 - Math.pow(1 + realReturn, -remaining));
+        return portfolioValue * rate;
+      }
+      case 'rmd': {
+        const divisor = RMD_TABLE[age] || Math.max(1, lifeExpectancy - age);
+        return portfolioValue / divisor;
+      }
+      case 'vanguard': {
+        const target = portfolioValue * withdrawalRate;
+        if (yearInRetirement === 0) return target;
+        const ceiling = (prevWithdrawal || annualSpending) * 1.05;
+        const floor = (prevWithdrawal || annualSpending) * 0.975;
+        return Math.max(floor, Math.min(ceiling, target));
+      }
+      default:
+        return annualSpending;
+    }
+  }, [annualSpending, riskProfile]);
+
+  const lifeExpectancy = planState.profile.lifeExpectancy || 90;
 
   const calculateScenario = useCallback((s1RetAge, s2RetAge) => {
     const currentAge = Math.min(scenarioData.spouse1CurrentAge, scenarioData.spouse2CurrentAge);
@@ -193,6 +269,8 @@ const AdvancedRetirementPlanner = () => {
     const r = getScenarioReturn(monteCarloScenario);
     let portfolio = scenarioData.currentNetWorth;
     const laterRet = Math.max(s1RetAge, s2RetAge);
+    let prevWithdrawal = annualSpending;
+    let yearInRetirement = -1;
 
     for (let year = 1; year <= totalYears; year++) {
       const age = currentAge + year;
@@ -203,23 +281,32 @@ const AdvancedRetirementPlanner = () => {
       else if (s1Retired || s2Retired) savings *= 0.5;
 
       let net = savings;
-      let hasPhaseSpending = false;
-      scenarioData.drawdownPhases.forEach(phase => {
-        if (age >= laterRet && age >= phase.startAge && age <= phase.endAge) {
-          net -= phase.annualAmount;
-          hasPhaseSpending = true;
+      if (s1Retired && s2Retired) {
+        if (spendStrategy === 'phases') {
+          let hasPhaseSpending = false;
+          scenarioData.drawdownPhases.forEach(phase => {
+            if (age >= laterRet && age >= phase.startAge && age <= phase.endAge) {
+              net -= phase.annualAmount;
+              hasPhaseSpending = true;
+            }
+          });
+          if (!hasPhaseSpending) net -= annualSpending;
+        } else {
+          yearInRetirement++;
+          const wd = computeWithdrawal(spendStrategy, {
+            portfolioValue: portfolio, age, retirementAge: laterRet,
+            lifeExpectancy, yearInRetirement, prevWithdrawal, prevReturn: r,
+          });
+          net -= wd;
+          prevWithdrawal = wd;
         }
-      });
-
-      if (s1Retired && s2Retired && !hasPhaseSpending) {
-        net -= annualSpending;
       }
 
       portfolio = portfolio * (1 + r) + net;
     }
 
     return { portfolioValue: portfolio, isViable: portfolio > 0 };
-  }, [scenarioData, selectedHeatmapAge, monteCarloScenario, getScenarioReturn, annualSpending]);
+  }, [scenarioData, selectedHeatmapAge, monteCarloScenario, getScenarioReturn, annualSpending, spendStrategy, computeWithdrawal, lifeExpectancy]);
 
   const generateHeatmap = useCallback(() => {
     setIsCalculating(true);
@@ -262,7 +349,7 @@ const AdvancedRetirementPlanner = () => {
     scenarioData.spouse2CurrentAge, scenarioData.spouse2RetirementAge,
     scenarioData.currentNetWorth, scenarioData.annualSavings,
     scenarioData.savingsGrowthRate, scenarioData.drawdownPhases,
-    selectedHeatmapAge, monteCarloScenario, expectedReturn,
+    selectedHeatmapAge, monteCarloScenario, expectedReturn, spendStrategy,
   ]);
 
   const rerunMonteCarlo = useCallback(() => {
@@ -304,41 +391,59 @@ const AdvancedRetirementPlanner = () => {
     if (years <= 0) return [];
 
     const scenarios = ['best', 'optimistic', 'median', 'pessimistic', 'worst'];
-    const scenarioReturns = {};
-    scenarios.forEach(sc => { scenarioReturns[sc] = getScenarioReturn(sc); });
+    const returnSequences = {};
+    scenarios.forEach(sc => { returnSequences[sc] = getScenarioReturnSequence(sc, years); });
     const laterRet = Math.max(scenarioData.spouse1RetirementAge, scenarioData.spouse2RetirementAge);
 
     const data = [{ age: currentAge, year: 0, best: scenarioData.currentNetWorth, optimistic: scenarioData.currentNetWorth, median: scenarioData.currentNetWorth, pessimistic: scenarioData.currentNetWorth, worst: scenarioData.currentNetWorth }];
 
+    const prevWd = {};
+    const retYears = {};
+    scenarios.forEach(sc => { prevWd[sc] = annualSpending; retYears[sc] = -1; });
+
     for (let year = 1; year <= years; year++) {
       const age = currentAge + year;
-      let savings = scenarioData.annualSavings * Math.pow(1 + scenarioData.savingsGrowthRate / 100, year - 1);
       const s1Ret = age >= scenarioData.spouse1RetirementAge;
       const s2Ret = age >= scenarioData.spouse2RetirementAge;
+      let savings = scenarioData.annualSavings * Math.pow(1 + scenarioData.savingsGrowthRate / 100, year - 1);
       if (s1Ret && s2Ret) savings = 0;
       else if (s1Ret || s2Ret) savings *= 0.5;
-
-      let net = savings;
-      let hasPhaseSpending = false;
-      scenarioData.drawdownPhases.forEach(phase => {
-        if (age >= laterRet && age >= phase.startAge && age <= phase.endAge) {
-          net -= phase.annualAmount;
-          hasPhaseSpending = true;
-        }
-      });
-      if (s1Ret && s2Ret && !hasPhaseSpending) {
-        net -= annualSpending;
-      }
 
       const prev = data[year - 1];
       const row = { age, year };
       scenarios.forEach(sc => {
-        row[sc] = prev[sc] * (1 + scenarioReturns[sc]) + net;
+        const portfolioValue = prev[sc];
+        const r = returnSequences[sc][year - 1];
+        let net = savings;
+
+        if (s1Ret && s2Ret) {
+          if (spendStrategy === 'phases') {
+            let hasPhaseSpending = false;
+            scenarioData.drawdownPhases.forEach(phase => {
+              if (age >= laterRet && age >= phase.startAge && age <= phase.endAge) {
+                net -= phase.annualAmount;
+                hasPhaseSpending = true;
+              }
+            });
+            if (!hasPhaseSpending) net -= annualSpending;
+          } else {
+            retYears[sc]++;
+            const wd = computeWithdrawal(spendStrategy, {
+              portfolioValue, age, retirementAge: laterRet,
+              lifeExpectancy, yearInRetirement: retYears[sc],
+              prevWithdrawal: prevWd[sc], prevReturn: r,
+            });
+            net -= wd;
+            prevWd[sc] = wd;
+          }
+        }
+
+        row[sc] = portfolioValue * (1 + r) + net;
       });
       data.push(row);
     }
     return data;
-  }, [scenarioData, selectedHeatmapAge, getScenarioReturn, annualSpending]);
+  }, [scenarioData, selectedHeatmapAge, getScenarioReturnSequence, annualSpending, spendStrategy, computeWithdrawal, lifeExpectancy]);
 
   const heatmapGrid = useMemo(() => {
     if (heatmapData.length === 0) return null;
@@ -450,6 +555,13 @@ const AdvancedRetirementPlanner = () => {
                 <option value="pessimistic">Pessimistic (10th %ile)</option>
                 <option value="worst">Worst Case (1st %ile)</option>
               </SelectField>
+              <SelectField label={<>Spend-Down Strategy<InfoButton text="How withdrawals are calculated after both spouses retire. 'Fixed Phases' uses the custom phases below. Other strategies dynamically adjust withdrawals based on portfolio value, age, or market conditions. See the Spend-Down Planner for detailed comparisons." wide /></>} value={spendStrategy}
+                onChange={e => setSpendStrategy(e.target.value)}
+                hint={spendStrategy === 'phases' ? 'Using custom drawdown phases below' : `Target: ${formatCurrency(annualSpending)}/yr`}>
+                {SPEND_DOWN_STRATEGIES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </SelectField>
               <button
                 onClick={rerunMonteCarlo}
                 disabled={isRerunningMC}
@@ -460,8 +572,8 @@ const AdvancedRetirementPlanner = () => {
             </div>
           </div>
 
-          {/* Drawdown Phases - Collapsible */}
-          <div className="terminal-card p-5">
+          {/* Drawdown Phases - Collapsible (only for phases strategy) */}
+          {spendStrategy === 'phases' && <div className="terminal-card p-5">
             <button
               onClick={() => setShowDrawdown(!showDrawdown)}
               className="w-full flex items-center justify-between"
@@ -526,7 +638,7 @@ const AdvancedRetirementPlanner = () => {
                 </button>
               </div>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* RIGHT: Charts + Heatmap */}
