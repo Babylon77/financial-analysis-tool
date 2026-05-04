@@ -22,13 +22,13 @@ export function calculateModaScores({
       roi: Math.min(10, annualizedROI / 5),
       cashFlow: 0,
       risk: Math.max(0, 10 - (holdingPeriod / 1.2)),
-      workload: 8,
+      workload: 3,
     },
     ltr: {
       roi: Math.min(10, ltrTotalROIAnnualized / 2),
       cashFlow: Math.min(10, annualCashFlow / initialInvestment * 20),
       risk: 7,
-      workload: 5,
+      workload: 7,
     },
     str: {
       roi: Math.min(10, strTotalROIAnnualized / 3),

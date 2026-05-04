@@ -34,7 +34,7 @@ export default function ResultsDashboard({ analysis, recommendedStrategy, strate
           </div>
           <div className="text-center">
             <h3 className="text-xl font-semibold mb-1">5-Year Profit</h3>
-            <p className="text-3xl font-bold">${formatCurrency(Math.max(analysis.netProfit, analysis.annualCashFlow * 5, analysis.annualStrCashFlow * 5))}</p>
+            <p className="text-3xl font-bold">${formatCurrency(Math.max(analysis.netProfit, analysis.rentalProfit, analysis.strTotalProfit))}</p>
             <p className="text-sm opacity-80">Maximum Strategy</p>
           </div>
         </div>
@@ -43,7 +43,7 @@ export default function ResultsDashboard({ analysis, recommendedStrategy, strate
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Purchase & Renovation */}
-        <div className="bg-surface-primary rounded-lgp-4">
+        <div className="bg-surface-primary rounded-lg p-4">
           <h4 className="text-lg font-semibold text-txt-primary mb-3">Purchase & Renovation</h4>
           <div className="space-y-2">
             <div className="flex justify-between">
@@ -66,7 +66,7 @@ export default function ResultsDashboard({ analysis, recommendedStrategy, strate
         </div>
 
         {/* ARV & Projected Value */}
-        <div className="bg-surface-primary rounded-lgp-4">
+        <div className="bg-surface-primary rounded-lg p-4">
           <h4 className="text-lg font-semibold text-txt-primary mb-3">ARV & Projected Value</h4>
           <div className="space-y-2">
             <div className="flex justify-between">
@@ -89,7 +89,7 @@ export default function ResultsDashboard({ analysis, recommendedStrategy, strate
         </div>
 
         {/* Deal Assessment */}
-        <div className="bg-surface-primary rounded-lgp-4">
+        <div className="bg-surface-primary rounded-lg p-4">
           <h4 className="text-lg font-semibold text-txt-primary mb-3">Deal Assessment</h4>
           <div className="mb-3">
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${getQualityColor(analysis.dealQuality)}`}>
@@ -137,7 +137,7 @@ export default function ResultsDashboard({ analysis, recommendedStrategy, strate
         </div>
 
         {/* Industry Standards */}
-        <div className="bg-surface-primary rounded-lgp-4">
+        <div className="bg-surface-primary rounded-lg p-4">
           <h4 className="text-lg font-semibold text-txt-primary mb-3">Industry Standards</h4>
           <div className="space-y-2">
             <div className={`p-2 rounded ${getQualityColor('Excellent')}`}>

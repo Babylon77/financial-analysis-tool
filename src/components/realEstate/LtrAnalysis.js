@@ -286,9 +286,9 @@ function LtrAnalysis({ analysis, formData }) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-muted">${formatCurrency(monthlyCashFlow)} x 12 months x 5 years</td>
                 </tr>
                 <tr>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-primary">Appreciation ({formData.appreciationRate || 3}% annually)</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-primary">Appreciation ({formData.annualAppreciation || 3}% annually)</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-terminal-green">${formatCurrency(appreciationProfit)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-muted">${formatCurrency(purchasePrice)} x (1 + {formData.appreciationRate || 3}%)^5 - ${formatCurrency(purchasePrice)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-muted">${formatCurrency(purchasePrice)} x (1 + {formData.annualAppreciation || 3}%)^5 - ${formatCurrency(purchasePrice)}</td>
                 </tr>
                 <tr>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-txt-primary">Loan Principal Paydown</td>

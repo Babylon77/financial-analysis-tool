@@ -56,11 +56,18 @@ export function useResultsAnalysis(formData) {
   const rentalROI = calculateRentalROI(formData);
 
   const purchasePrice = sensitivityInputs.purchasePrice || parseFloat(formData.purchasePrice);
-  const downPayment = (purchasePrice * parseFloat(formData.downPayment)) / 100;
+  const downPaymentPercent = parseFloat(formData.downPayment) || 20;
+  const downPayment = (purchasePrice * downPaymentPercent) / 100;
   const loanAmount = purchasePrice - downPayment;
-  const monthlyInterestRate = (sensitivityInputs.interestRate || parseFloat(formData.interestRate)) / 100 / 12;
+  const interestRate = sensitivityInputs.interestRate || parseFloat(formData.interestRate);
+  const monthlyInterestRate = interestRate / 100 / 12;
   const numberOfPayments = parseFloat(formData.loanTerm) * 12;
-  const monthlyPayment = loanAmount * (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, numberOfPayments)) / (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1);
+  const closingCostPercent = parseFloat(formData.closingCosts) || 3;
+  const closingCosts = (purchasePrice * closingCostPercent) / 100;
+
+  const monthlyPayment = loanAmount > 0 && monthlyInterestRate > 0
+    ? loanAmount * (monthlyInterestRate * Math.pow(1 + monthlyInterestRate, numberOfPayments)) / (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1)
+    : loanAmount > 0 ? loanAmount / numberOfPayments : 0;
 
   const renovationCost = sensitivityInputs.renovationCost || parseFloat(formData.renovationCost);
   const holdingPeriod = sensitivityInputs.holdingPeriod || parseFloat(formData.holdingPeriod);
@@ -70,20 +77,22 @@ export function useResultsAnalysis(formData) {
   const expectedSellingPrice = sensitivityInputs.arv || parseFloat(formData.expectedSellingPrice);
   const sellingCosts = (expectedSellingPrice * parseFloat(formData.sellingCosts)) / 100;
 
-  const totalInvestment = downPayment + renovationCost + totalHoldingCosts;
-  const netProfit = expectedSellingPrice - sellingCosts - purchasePrice - renovationCost - totalHoldingCosts;
-  const roi = (netProfit / totalInvestment) * 100;
+  const totalInvestment = downPayment + renovationCost + closingCosts + totalHoldingCosts;
+  const netProfit = expectedSellingPrice - sellingCosts - purchasePrice - renovationCost - closingCosts - totalHoldingCosts;
+  const roi = totalInvestment > 0 ? (netProfit / totalInvestment) * 100 : 0;
 
   const arvToPurchaseRatio = expectedSellingPrice / purchasePrice;
   const renovationToArvRatio = (renovationCost / expectedSellingPrice) * 100;
-  const annualizedROI = (roi / holdingPeriod) * 12;
+  const annualizedROI = holdingPeriod > 0
+    ? (Math.pow(1 + roi / 100, 12 / holdingPeriod) - 1) * 100
+    : 0;
 
   // LTR calculations
   const monthlyRent = sensitivityInputs.monthlyRent || parseFloat(formData.expectedMonthlyRent) || 0;
   const annualRent = monthlyRent * 12;
   const vacancyRate = parseFloat(formData.vacancyRate) || 8;
   const effectiveAnnualRent = annualRent * (1 - vacancyRate / 100);
-  const propertyManagementFee = effectiveAnnualRent * (parseFloat(formData.propertyManagementFee) || 10) / 100;
+  const propertyManagementFee = effectiveAnnualRent * (parseFloat(formData.propertyManagement) || 8) / 100;
 
   const propertyTaxAnnual = purchasePrice * EXPENSE_RATIOS.propertyTax;
   const insuranceAnnual = purchasePrice * EXPENSE_RATIOS.insurance;
@@ -93,7 +102,7 @@ export function useResultsAnalysis(formData) {
 
   const totalAnnualExpenses = propertyTaxAnnual + insuranceAnnual + maintenanceAnnual + utilitiesAnnual + capexAnnual + propertyManagementFee;
   const annualCashFlow = effectiveAnnualRent - totalAnnualExpenses - monthlyPayment * 12;
-  const ltrCashOnCashReturn = (annualCashFlow / (downPayment + renovationCost)) * 100;
+  const ltrCashOnCashReturn = (annualCashFlow / (downPayment + renovationCost + closingCosts)) * 100;
 
   // STR calculations
   const nightlyRate = sensitivityInputs.nightlyRate || parseFloat(formData.nightlyRate) || estimateNightlyRate();
@@ -107,11 +116,13 @@ export function useResultsAnalysis(formData) {
   const strUtilitiesAnnual = purchasePrice * EXPENSE_RATIOS.strUtilities;
   const strCapexAnnual = annualStrRevenue * EXPENSE_RATIOS.strCapex;
   const additionalStrExpenses = (parseFloat(formData.additionalStrExpenses) || 250) * 12;
+  const strCleaningCosts = (parseFloat(formData.cleaningPerTurn) || 100) *
+    Math.ceil(365 * (occupancyRate / 100) / (parseFloat(formData.averageStay) || 3));
 
   const totalStrAnnualExpenses = strPropertyTaxAnnual + strInsuranceAnnual + strMaintenanceAnnual +
-    strUtilitiesAnnual + strCapexAnnual + strManagementFee + additionalStrExpenses;
+    strUtilitiesAnnual + strCapexAnnual + strManagementFee + strCleaningCosts + additionalStrExpenses;
   const annualStrCashFlow = annualStrRevenue - totalStrAnnualExpenses - monthlyPayment * 12;
-  const strCashOnCashReturn = (annualStrCashFlow / (downPayment + renovationCost)) * 100;
+  const strCashOnCashReturn = (annualStrCashFlow / (downPayment + renovationCost + closingCosts)) * 100;
 
   // Deal quality
   const dealQuality = (() => {
@@ -122,7 +133,7 @@ export function useResultsAnalysis(formData) {
   })();
 
   // 5-year projections
-  const annualAppreciationRate = 0.03;
+  const annualAppreciationRate = parseFloat(formData.annualAppreciation) / 100 || 0.03;
   const futureValue = purchasePrice * Math.pow(1 + annualAppreciationRate, 5);
   const appreciationProfit = futureValue - purchasePrice;
 
@@ -130,15 +141,16 @@ export function useResultsAnalysis(formData) {
   const loanPaydown = loanAmount - remainingLoanBalance;
 
   const futureSellingCosts = futureValue * parseFloat(formData.sellingCosts) / 100;
+  const initialInvestment = downPayment + renovationCost + closingCosts;
   const rentalProfit = (annualCashFlow * 5) + appreciationProfit + loanPaydown - futureSellingCosts;
-  const rentalROIValue = (rentalProfit / (downPayment + renovationCost)) * 100;
-  const cashOnCashReturn = (annualCashFlow / (downPayment + renovationCost)) * 100;
+  const rentalROIValue = initialInvestment > 0 ? (rentalProfit / initialInvestment) * 100 : 0;
+  const cashOnCashReturn = initialInvestment > 0 ? (annualCashFlow / initialInvestment) * 100 : 0;
 
   const strTotalProfit = (annualStrCashFlow * 5) + appreciationProfit + loanPaydown - futureSellingCosts;
-  const strTotalROI = (strTotalProfit / (downPayment + renovationCost)) * 100;
+  const strTotalROI = initialInvestment > 0 ? (strTotalProfit / initialInvestment) * 100 : 0;
 
-  const ltrTotalROIAnnualized = rentalROIValue / 5;
-  const strTotalROIAnnualized = strTotalROI / 5;
+  const ltrTotalROIAnnualized = (Math.pow(1 + rentalROIValue / 100, 1 / 5) - 1) * 100;
+  const strTotalROIAnnualized = (Math.pow(1 + strTotalROI / 100, 1 / 5) - 1) * 100;
 
   const monthlyCashFlow = annualCashFlow / 12;
   const capRate = (effectiveAnnualRent - totalAnnualExpenses) / purchasePrice * 100;
@@ -148,14 +160,14 @@ export function useResultsAnalysis(formData) {
     effectiveAnnualRent, propertyTaxAnnual, insuranceAnnual, maintenanceAnnual,
     utilitiesAnnual, capexAnnual, monthlyPayment, formData,
     annualStrRevenue, strPropertyTaxAnnual, strInsuranceAnnual, strMaintenanceAnnual,
-    strUtilitiesAnnual, strCapexAnnual, additionalStrExpenses,
+    strUtilitiesAnnual, strCapexAnnual, strCleaningCosts, additionalStrExpenses,
   });
 
   // ROI progression data
-  const initialInvestment = downPayment + renovationCost;
   const roiProgressionData = buildRoiProgression({
     cashFlowProjectionData, purchasePrice, annualAppreciationRate,
-    loanPaydown, initialInvestment, annualizedROI,
+    loanAmount, monthlyInterestRate, numberOfPayments,
+    initialInvestment, annualizedROI,
   });
 
   // Renovation timeline
@@ -166,8 +178,8 @@ export function useResultsAnalysis(formData) {
     handleSensitivityChange,
     estimateNightlyRate,
     flipROI, rentalROI,
-    purchasePrice, downPayment, loanAmount, monthlyInterestRate, numberOfPayments, monthlyPayment,
-    renovationCost, holdingPeriod, monthlyExpenses, totalHoldingCosts,
+    purchasePrice, downPayment, downPaymentPercent, loanAmount, monthlyInterestRate, numberOfPayments, monthlyPayment,
+    renovationCost, holdingPeriod, monthlyExpenses, totalHoldingCosts, closingCosts,
     expectedSellingPrice, sellingCosts, totalInvestment, netProfit, roi,
     arvToPurchaseRatio, renovationToArvRatio, annualizedROI,
     monthlyRent, annualRent, vacancyRate, effectiveAnnualRent, propertyManagementFee,
@@ -175,8 +187,8 @@ export function useResultsAnalysis(formData) {
     totalAnnualExpenses, annualCashFlow, ltrCashOnCashReturn,
     nightlyRate, occupancyRate, annualStrRevenue, strManagementFee,
     strPropertyTaxAnnual, strInsuranceAnnual, strMaintenanceAnnual, strUtilitiesAnnual,
-    strCapexAnnual, additionalStrExpenses, totalStrAnnualExpenses, annualStrCashFlow, strCashOnCashReturn,
-    dealQuality,
+    strCapexAnnual, strCleaningCosts, additionalStrExpenses, totalStrAnnualExpenses, annualStrCashFlow, strCashOnCashReturn,
+    dealQuality, annualAppreciationRate,
     appreciationProfit, loanPaydown, futureSellingCosts, rentalProfit, rentalROIValue,
     cashOnCashReturn, strTotalProfit, strTotalROI,
     ltrTotalROIAnnualized, strTotalROIAnnualized,
@@ -184,6 +196,7 @@ export function useResultsAnalysis(formData) {
     cashFlowProjectionData, roiProgressionData, renovationTimelineData,
     investmentBreakdown: [
       { name: 'Down Payment', value: downPayment },
+      { name: 'Closing Costs', value: closingCosts },
       { name: 'Renovation', value: renovationCost },
       { name: 'Holding Costs', value: totalHoldingCosts },
     ],
@@ -194,7 +207,7 @@ function buildCashFlowProjection({
   effectiveAnnualRent, propertyTaxAnnual, insuranceAnnual, maintenanceAnnual,
   utilitiesAnnual, capexAnnual, monthlyPayment, formData,
   annualStrRevenue, strPropertyTaxAnnual, strInsuranceAnnual, strMaintenanceAnnual,
-  strUtilitiesAnnual, strCapexAnnual, additionalStrExpenses,
+  strUtilitiesAnnual, strCapexAnnual, strCleaningCosts, additionalStrExpenses,
 }) {
   const annualRentIncrease = 0.025;
   const annualPropertyTaxIncrease = 0.02;
@@ -208,7 +221,7 @@ function buildCashFlowProjection({
     const adjustedPropertyTaxAnnual = propertyTaxAnnual * Math.pow(1 + annualPropertyTaxIncrease, year - 1);
     const adjustedInsuranceAnnual = insuranceAnnual * Math.pow(1 + annualInsuranceIncrease, year - 1);
     const adjustedMaintenanceAnnual = maintenanceAnnual * Math.pow(1 + annualMaintenanceIncrease, year - 1);
-    const adjustedPropertyManagementFee = (adjustedAnnualRent * (parseFloat(formData.propertyManagementFee) || 10) / 100);
+    const adjustedPropertyManagementFee = (adjustedAnnualRent * (parseFloat(formData.propertyManagement) || 8) / 100);
 
     const ltrTotalExpenses = adjustedPropertyTaxAnnual + adjustedInsuranceAnnual + adjustedMaintenanceAnnual +
       utilitiesAnnual + capexAnnual + adjustedPropertyManagementFee + (monthlyPayment * 12);
@@ -222,7 +235,7 @@ function buildCashFlowProjection({
 
     const strTotalExpenses = adjustedStrPropertyTax + adjustedStrInsurance + adjustedStrMaintenance +
       strUtilitiesAnnual + strCapexAnnual + adjustedStrManagementFee +
-      additionalStrExpenses + (monthlyPayment * 12);
+      strCleaningCosts + additionalStrExpenses + (monthlyPayment * 12);
     const strYearCashFlow = adjustedStrRevenue - strTotalExpenses;
 
     data.push({
@@ -237,7 +250,8 @@ function buildCashFlowProjection({
 
 function buildRoiProgression({
   cashFlowProjectionData, purchasePrice, annualAppreciationRate,
-  loanPaydown, initialInvestment, annualizedROI,
+  loanAmount, monthlyInterestRate, numberOfPayments,
+  initialInvestment, annualizedROI,
 }) {
   const data = [];
   let cumulativeLtrCashFlow = 0;
@@ -248,10 +262,15 @@ function buildRoiProgression({
     cumulativeStrCashFlow += cashFlowProjectionData[year].str;
 
     const cumulativeAppreciation = purchasePrice * (Math.pow(1 + annualAppreciationRate, year) - 1);
-    const cumulativePrincipalPaydown = (loanPaydown / 5) * year;
+    const balanceNow = calculateRemainingLoanBalance(loanAmount, monthlyInterestRate, numberOfPayments, year * 12);
+    const cumulativePrincipalPaydown = loanAmount - balanceNow;
 
-    const ltrCumulativeROI = ((cumulativeLtrCashFlow + cumulativeAppreciation + cumulativePrincipalPaydown) / initialInvestment) * 100;
-    const strCumulativeROI = ((cumulativeStrCashFlow + cumulativeAppreciation + cumulativePrincipalPaydown) / initialInvestment) * 100;
+    const ltrCumulativeROI = initialInvestment > 0
+      ? ((cumulativeLtrCashFlow + cumulativeAppreciation + cumulativePrincipalPaydown) / initialInvestment) * 100
+      : 0;
+    const strCumulativeROI = initialInvestment > 0
+      ? ((cumulativeStrCashFlow + cumulativeAppreciation + cumulativePrincipalPaydown) / initialInvestment) * 100
+      : 0;
     const flipCumulativeROI = year === 1 ? annualizedROI : data[0]?.flip || annualizedROI;
 
     data.push({
@@ -267,11 +286,9 @@ function buildRoiProgression({
 
 function buildRenovationTimeline(formData, renovationCost) {
   const data = [];
-  if ((!formData.propertyCondition || formData.propertyCondition === '') && renovationCost <= 0) {
-    return data;
-  }
+  const condition = formData.houseCondition || 'fair';
+  if (condition === '' && renovationCost <= 0) return data;
 
-  const condition = formData.propertyCondition || 'fair';
   const selectedPhases = RENOVATION_PHASES[condition] || RENOVATION_PHASES['fair'];
 
   let cumulativeWeeks = 0;

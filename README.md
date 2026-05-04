@@ -1,190 +1,165 @@
-# Real Estate Investment Analysis Tool
+# Ultronic Terminal
 
-## What This Tool Does
+A professional financial analysis platform with an 80s Wall Street terminal aesthetic. Two integrated modules: **Financial Planning** for retirement accumulation and spend-down analysis, and **Real Estate** for investment property strategy comparison.
 
-The Real Estate Investment Analysis Tool is a comprehensive calculator that helps real estate investors make informed decisions by comparing three different investment strategies for any property. Instead of guessing which approach might work best, this tool uses proven financial formulas and market data to give you clear, data-driven recommendations.
+**Live site:** [financial-analysis-tool.netlify.app](https://financial-analysis-tool.netlify.app)
 
-## The Three Investment Strategies Analyzed
+---
 
-### 1. Fix & Flip Strategy
-**What it is:** Buy a property, renovate it, and sell it quickly for a profit.
+## Financial Planning Module
 
-**How we calculate returns:**
-- Takes your purchase price, renovation costs, and expected selling price
-- Factors in holding costs (mortgage payments, utilities, insurance) during renovation
-- Calculates selling costs (typically 6-8% of sale price for realtor fees, closing costs)
-- Determines your total profit and annualized return on investment
+A guided, sidebar-based hub at `/financial-planning` with five sections that flow top to bottom.
 
-**Best for:** Investors who want quick returns and have experience managing renovations.
+### 1. Profile
 
-### 2. Long-Term Rental (LTR) Strategy  
-**What it is:** Buy a property, renovate it, and rent it out to long-term tenants (typically 1-year leases).
+Captures your complete financial picture:
+- Filing status, both spouses' ages and target retirement ages, life expectancy
+- Account balances across 6 types: Traditional 401(k), Roth 401(k), Traditional IRA, Roth IRA, HSA, and Taxable Brokerage
+- Annual income, spending, savings, and savings growth rate
+- Employer match details and HSA eligibility
+- Social Security monthly benefit at full retirement age (each spouse)
+- Pension income (start age and annual amount, each spouse)
 
-**How we calculate returns:**
-- Projects monthly rental income based on local market rates
-- Subtracts all expenses: mortgage payments, property taxes, insurance, maintenance, property management fees, and vacancy allowance
-- Calculates monthly cash flow and long-term appreciation over 5 years
-- Includes principal paydown (the portion of your mortgage payment that builds equity)
+All profile data auto-syncs to the Monte Carlo simulator and spend-down analysis.
 
-**Best for:** Investors seeking steady monthly income and long-term wealth building.
+### 2. Accumulate (Monte Carlo Simulation)
 
-### 3. Short-Term Rental (STR) Strategy
-**What it is:** Buy a property, renovate it, and rent it out nightly (like Airbnb or VRBO).
+Projects portfolio growth from today to retirement using Monte Carlo simulation.
 
-**How we calculate returns:**
-- Estimates nightly rates based on your location and property size
-- Projects occupancy rates (how many nights per year it's booked)
-- Accounts for higher expenses: frequent cleaning, increased insurance, utilities, supplies, and higher management fees
-- Calculates potential revenue minus all operating costs
+**Model details:**
+- Correlated multi-asset simulation with stocks (9% real arithmetic mean, 18% vol) and bonds (2.5% real mean, 7% vol)
+- Bull/bear market regime switching — not a random walk
+- Ornstein-Uhlenbeck stochastic inflation (mean-reverting, default 3%)
+- Cholesky decomposition for stock-bond correlation (-0.2)
+- All returns are **real** (inflation-adjusted) — values shown in today's dollars
 
-**Best for:** Investors in tourist areas who can manage higher operational demands for potentially higher returns.
+**Risk profiles:**
+| Profile | Stocks/Bonds | Expected Real Return | Single-Year Range |
+|---------|-------------|---------------------|-------------------|
+| Conservative | 30/70 | ~4.5% | -22% to +28% |
+| Balanced | 60/40 | ~6.5% | -33% to +38% |
+| Growth | 80/20 | ~7.5% | -42% to +48% |
+| Aggressive | 95/5 | ~8.5% | -50% to +55% |
 
-## How the Analysis Works
+**Output:** Percentile fan charts (5th through 95th), median CAGR, median final value, drawdown statistics, savings growth chart.
 
-### Step 1: Property Information Input
-You provide basic details about the property:
-- Purchase price and location
-- Property size and condition
-- Renovation budget and timeline
-- Financing details (down payment, interest rate, loan term)
+### 3. Spend-Down (Withdrawal Strategies)
 
-### Step 2: Market Research Integration
-The tool automatically estimates:
-- Local rental rates for long-term rentals
-- Average nightly rates for short-term rentals in your area
-- Regional cost adjustments for renovation expenses
-- Local property tax and insurance rates
+Answers: *"How much can I safely withdraw in retirement?"*
 
-### Step 3: Financial Calculations
+Runs 1,000 Monte Carlo return paths and tests **7 withdrawal strategies** at increasing withdrawal rates. For each, finds the maximum safe withdrawal rate at 95% confidence.
 
-**For Fix & Flip:**
-- Total Investment = Down Payment + Renovation Costs + Holding Costs
-- Net Profit = Sale Price - Selling Costs - Purchase Price - Renovation - Holding Costs  
-- ROI = (Net Profit ÷ Total Investment) × 100%
-- Annualized ROI = ROI ÷ (Holding Period in Months) × 12
+**The 7 strategies:**
+1. **Fixed Dollar** — constant inflation-adjusted amount each year
+2. **Percent of Portfolio** — fixed percentage of current balance
+3. **Guyton-Klinger** — guardrails that cut or boost spending based on portfolio performance
+4. **Bucket** — splits portfolio into cash (2yr), income (5yr), and growth buckets
+5. **VPW (Variable Percentage Withdrawal)** — actuarial formula, adjusts with age and remaining years
+6. **RMD-Based** — follows IRS Required Minimum Distribution tables
+7. **Vanguard Dynamic** — percentage of portfolio with floor (2.5%) and ceiling (5%)
 
-**For Rental Strategies (LTR & STR):**
-- Monthly Cash Flow = Monthly Income - Monthly Expenses
-- 5-Year Appreciation = Property Value × (1.03^5) - Purchase Price
-- Principal Paydown = Mortgage Balance Reduction Over 5 Years
-- Total Return = (Cash Flow × 60 months) + Appreciation + Principal Paydown
-- Annualized ROI = Total Return ÷ 5 years ÷ Initial Investment × 100%
+**Income bridge:** Social Security and pension income reduces portfolio withdrawal needs. If you retire at 55 but SS starts at 67, you only need to bridge 12 years from your portfolio. Safe withdrawal rates are higher when income sources are factored in.
 
-### Step 4: Risk and Workload Assessment
-The tool evaluates each strategy on four key criteria:
+**Additional analysis sections:**
+- **RMD projections** — year-by-year Required Minimum Distributions from age 73+
+- **Roth conversion ladder** — optimal annual conversions to fill low tax brackets before RMDs start
+- **Social Security optimizer** — claiming age analysis (62–70) with break-even calculations
+- **Tax bracket analysis** — projected marginal and effective rates, IRMAA Medicare surcharge warnings, Roth conversion space
 
-**ROI (Return on Investment):** Financial performance based on calculations above
+### 4. Advanced Retirement
 
-**Cash Flow:** Monthly income generation
-- Fix & Flip: $0 (no monthly income during renovation)
-- LTR: Steady monthly rental income minus expenses
-- STR: Variable monthly income based on occupancy and rates
+- **Heatmap** — portfolio survival for every combination of Spouse 1 and Spouse 2 retirement ages. Green = viable, red = depleted. Shows the double benefit of working longer: more savings AND fewer retirement years.
+- **Drawdown phases** — model changing spending patterns (e.g., active travel at 65, slower pace at 75, minimal at 85)
+- **Projection chart** — 5-scenario fan (best/optimistic/median/pessimistic/worst) with drawdown phase overlays
 
-**Risk Level (1-10 scale, lower is better):**
-- Fix & Flip: Based on holding period and market volatility
-- LTR: Based on vacancy rates and market stability  
-- STR: Based on regulation changes and occupancy fluctuations
+### 5. Reports
 
-**Workload (1-10 scale, lower is easier):**
-- Fix & Flip: High initially, then none after sale
-- LTR: Moderate ongoing management
-- STR: High ongoing daily management
+Export comprehensive reports once you've run both Monte Carlo and Spend-Down analyses:
+- **Excel** (.xlsx) — multi-sheet workbook with all data
+- **CSV** — flat file for spreadsheet import
+- **PDF** — formatted report with key metrics and strategy comparison
 
-### Step 5: MODA (Multi-Objective Decision Analysis)
-The tool uses a weighted scoring system where you can customize the importance of each factor:
-- **Default weights:** ROI (35%), Cash Flow (30%), Risk (20%), Workload (15%)
-- **Customizable:** Adjust sliders to match your investment priorities
-- **Final Score:** Each strategy gets a score out of 10, and the highest score is recommended
+---
 
-## Key Features Explained
+## Real Estate Module
 
-### Sensitivity Analysis
-Interactive sliders let you see how changes affect your returns:
-- **Purchase Price:** See impact of paying 20% more or less
-- **Renovation Costs:** Test scenarios with 30% lower to 50% higher costs
-- **After Repair Value:** Understand effect of market changes on sale price
-- **Monthly Rent & Nightly Rates:** Test different income scenarios
-- **Occupancy Rates:** See how booking rates affect STR profitability
+Compares three investment strategies for any property: Fix & Flip, Long-Term Rental (LTR), and Short-Term Rental (STR).
 
-### Deal Quality Assessment
-The tool grades deals based on industry standards:
-- **Excellent:** ROI ≥30%, ARV ≥1.3x purchase price, renovation ≤20% of ARV
-- **Good:** ROI ≥20%, ARV ≥1.2x purchase price, renovation ≤25% of ARV  
-- **Fair:** ROI ≥10%, ARV ≥1.1x purchase price, renovation ≤30% of ARV
-- **Poor:** Below fair thresholds
+### Input
 
-### Advanced Projections
-**5-Year Cash Flow Projection:** Shows how rental income grows over time with:
-- 2.5% annual rent increases
-- 2% annual property tax increases
-- 4% annual insurance increases  
-- 3% annual maintenance cost increases
+Property details: purchase price, location (all 50 states with regional cost adjustments), house size, condition (teardown/poor/fair/good), and financing (down payment, interest rate, loan term). Optional: monthly rent, nightly STR rate, occupancy, management fees.
 
-**ROI Comparison Charts:** Visual comparison of annualized returns across all strategies
+Renovation costs auto-estimate from condition + size + location + DIY level, or can be entered manually.
 
-## Industry Standards and Benchmarks
+### Analysis
 
-### Fix & Flip Benchmarks
-- **Minimum ROI:** 15-20% to account for risk
-- **ARV Rule:** Property should be worth at least 70% of ARV after all costs
-- **Timeline:** Most profitable flips completed in 3-6 months
+**Fix & Flip:**
+- Net profit after purchase, renovation, closing costs, holding costs, and selling costs
+- Compound-annualized ROI based on holding period
+- 70% rule check: never pay more than 70% of ARV minus renovation costs
 
-### Rental Property Benchmarks
-- **1% Rule:** Monthly rent should equal 1% of purchase price (getting harder to find)
-- **Cap Rate:** Net operating income ÷ property value should be 8-12% in most markets
-- **Cash Flow:** Positive cash flow of $200+ per month preferred
+**Long-Term Rental:**
+- Monthly cash flow (rent minus mortgage, taxes, insurance, maintenance, management, vacancy reserve)
+- 5-year total return: cash flow + appreciation (default 3%/yr) + mortgage principal paydown - selling costs
+- Compound-annualized ROI, cap rate, cash-on-cash return
 
-### Market Assumptions
-- **Property Appreciation:** 3% annually (historical average)
-- **Inflation:** Built into expense increases
-- **Vacancy Rates:** 8% for LTR (industry standard)
-- **Occupancy Rates:** 65% for STR (conservative estimate)
+**Short-Term Rental:**
+- Revenue from nightly rate × occupancy with cleaning/turnover costs, higher insurance (1.5×), utilities, management (20%), and supplies
+- Same 5-year appreciation and paydown components as LTR
 
-## How to Use This Information
+**MODA (Multi-Objective Decision Analysis):**
+- Scores each strategy 0-10 on ROI, cash flow, risk, and workload
+- User-adjustable priority weights
+- Recommends the best strategy for your priorities
 
-### For Beginners
-1. **Start with the recommended strategy** based on your inputs
-2. **Focus on deal quality** - avoid "Poor" rated deals
-3. **Use sensitivity analysis** to understand risks
-4. **Consider your personal situation** - time, experience, risk tolerance
+**Deal quality grading:**
+- Excellent: ROI ≥ 30%, ARV ≥ 1.3× purchase, renovation ≤ 20% of ARV
+- Good: ROI ≥ 20%, ARV ≥ 1.2×, renovation ≤ 25%
+- Fair: ROI ≥ 10%, ARV ≥ 1.1×, renovation ≤ 30%
+- Poor: below Fair thresholds
 
-### For Experienced Investors  
-1. **Customize objective weights** to match your criteria
-2. **Analyze all three strategies** even if one seems obvious
-3. **Use projections** to understand long-term implications
-4. **Factor in market timing** and local regulations
+**Sensitivity analysis:** Real-time sliders for purchase price, renovation cost, ARV, rent, occupancy, and interest rate.
 
-### Red Flags to Watch For
-- **Negative cash flow** in rental strategies
-- **ROI below 15%** for fix & flip
-- **Renovation costs above 25%** of ARV
-- **STR occupancy requirements above 80%** to break even
+**5-year projections:** Cash flow growth with 2.5% rent increases, 2% tax increases, 4% insurance increases, and 3% maintenance increases.
 
-## Limitations and Considerations
+---
 
-### What This Tool Doesn't Include
-- **Local regulations** (HOA rules, STR restrictions, rent control)
-- **Market timing** (economic cycles, seasonal variations)
-- **Personal factors** (credit score, experience level, available time)
-- **Unexpected costs** (major repairs, market downturns, extended vacancies)
+## Authentication & Data Persistence
 
-### Always Remember
-- These are **estimates based on assumptions** - actual results will vary
-- **Do your own market research** - verify rental rates and demand
-- **Consult professionals** - realtors, contractors, property managers, tax advisors
-- **Consider multiple properties** - this tool helps compare options
+- **Session storage** — profile, simulation config, and results auto-save to browser session
+- **Cloud sync** — sign in with Google OAuth or email/password to sync financial profile to Supabase (5-second debounce)
+- **Spend-down cache** — MC paths and survival analysis cached in memory during navigation, lost on page refresh
 
-## Technical Details
+---
 
-### Data Sources
-- **Nightly Rates:** Based on state averages (in production, would integrate with Airbnb/VRBO APIs)
-- **Expense Ratios:** Industry standard percentages
-- **Appreciation Rates:** Historical market averages
+## Tech Stack
 
-### Calculation Methodology
-- **All dollar amounts** rounded to nearest dollar for readability
-- **Percentages** calculated to one decimal place
-- **Time value of money** considered in multi-year projections
-- **Conservative estimates** used for income, aggressive for expenses
+| Layer | Technology |
+|-------|-----------|
+| Framework | React 18 (Create React App) with HashRouter |
+| UI | MUI 5 + Tailwind CSS 3 (dark terminal theme) |
+| Charts | Recharts (primary), ApexCharts (secondary) |
+| Fonts | JetBrains Mono (data), Inter (body), Space Grotesk (display) |
+| State | React Context + useReducer |
+| Auth | Supabase (Google OAuth + email/password) |
+| Export | SheetJS (xlsx), @react-pdf/renderer |
+| Hosting | Netlify |
 
-This tool is designed to help you make informed decisions, but successful real estate investing requires careful market research, due diligence, and often professional advice. Use this analysis as a starting point for your investment evaluation process.
+## Development
+
+```bash
+npm install        # Install dependencies
+npm start          # Dev server on localhost:3000
+npm run build      # Production build
+npm test           # Run tests
+```
+
+Environment variables (`.env.local`):
+```
+REACT_APP_SUPABASE_URL=https://your-project.supabase.co
+REACT_APP_SUPABASE_ANON_KEY=your-anon-key
+```
+
+## Disclaimer
+
+This tool is for educational and planning purposes only. It does not constitute financial, tax, or investment advice. Monte Carlo simulations model probabilities based on historical patterns — actual market conditions may differ significantly. Always consult qualified professionals before making financial or investment decisions.

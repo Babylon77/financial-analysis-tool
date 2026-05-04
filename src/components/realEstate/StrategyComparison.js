@@ -168,7 +168,7 @@ export default function StrategyComparison({ analysis, selectedStrategy, recomme
               <h3 className="text-lg font-medium text-txt-primary mb-2">Purchase</h3>
               <dl className="space-y-1">
                 <MetricRow label="Purchase Price:" value={`$${formatCurrency(purchasePrice)}`} />
-                <MetricRow label={`Down Payment (${formData.downPaymentPercent}%):`} value={`$${formatCurrency(downPayment)}`} />
+                <MetricRow label={`Down Payment (${formData.downPayment}%):`} value={`$${formatCurrency(downPayment)}`} />
                 <MetricRow label="Loan Amount:" value={`$${formatCurrency(loanAmount)}`} />
                 <MetricRow label="Interest Rate:" value={`${formData.interestRate}%`} />
               </dl>
