@@ -527,7 +527,7 @@ export default function SpendDown() {
         summarize(WITHDRAWAL_STRATEGY_LABELS.percent, pct),
         summarize(WITHDRAWAL_STRATEGY_LABELS.guyton_klinger, gk),
         summarize(WITHDRAWAL_STRATEGY_LABELS.bucket, bucket),
-        summarize(WITHDRAWAL_STRATEGY_LABELS.vpw, vpw, true),
+        summarize(WITHDRAWAL_STRATEGY_LABELS.vpw, vpw),
         summarize(WITHDRAWAL_STRATEGY_LABELS.rmd_based, rmd),
         summarize(WITHDRAWAL_STRATEGY_LABELS.vanguard_dynamic, vanguard),
       ],
@@ -799,7 +799,7 @@ export default function SpendDown() {
                     <p><span className="text-terminal-green font-bold">Percent of Portfolio</span> — Withdraw a fixed percentage of your current balance. Spending adjusts with market, so you never fully deplete.</p>
                     <p><span className="text-terminal-green font-bold">Guardrails (Guyton-Klinger)</span> — Start with a target amount, then apply rules: skip inflation raises after down years, cut 10% if rate exceeds ceiling, raise 10% if below floor.</p>
                     <p><span className="text-terminal-green font-bold">Bucket Strategy</span> — Split portfolio into cash (1-2yr), income (3-7yr), and growth (8+yr) buckets. Spend from cash while growth bucket recovers from downturns.</p>
-                    <p><span className="text-terminal-green font-bold">Variable Percentage (VPW)</span> — Actuarial formula that adjusts withdrawal rate based on remaining life expectancy. Spends more early, less later. Never depletes by design.</p>
+                    <p><span className="text-terminal-green font-bold">Variable Percentage (VPW)</span> — Actuarial formula that adjusts withdrawal rate based on remaining life expectancy. Spends more early, less later. Balance approaches zero by end of plan — this is intentional, not a failure.</p>
                     <p><span className="text-terminal-green font-bold">RMD-Based</span> — Follows IRS Required Minimum Distribution divisor tables. Withdrawals increase as a percentage of portfolio with age. Mandatory from Traditional accounts at 73+.</p>
                     <p><span className="text-terminal-green font-bold">Vanguard Dynamic</span> — Targets a fixed percentage but applies floor (-2.5%) and ceiling (+5%) limits to year-over-year changes. Smooths spending volatility.</p>
                   </div>
