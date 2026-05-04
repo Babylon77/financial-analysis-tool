@@ -152,8 +152,8 @@ const runSimulationPath = ({
     } else {
       consecutiveNegativeEquityYears = 0;
     }
-    // Cap extreme losses at 50% for a single year
-    stockReturn = Math.max(-0.50, stockReturn);
+    // Cap extreme single-year returns to historical bounds
+    stockReturn = Math.max(-0.50, Math.min(0.60, stockReturn));
 
     // Bond return is purely REAL (no inflation added to drift), consistent with stock returns
     const expectedBondReturn = bondParams.meanReal;
@@ -163,6 +163,7 @@ const runSimulationPath = ({
     // Adjust for inflation surprise (unexpected inflation hurts real bond returns)
     const inflationSurprise = currentInflation - inflationParams.mean;
     bondReturn += inflationSurprise * bondParams.inflationSensitivity;
+    bondReturn = Math.max(-0.20, Math.min(0.30, bondReturn));
 
     // 3. CALCULATE PORTFOLIO RETURN (on existing balance only)
     let stockPct = allocation.stocks;
@@ -441,10 +442,11 @@ export function generateCorrelatedSequences({ years, riskProfile = 'balanced', i
 
       if (consecutiveNeg > 2 && stockReturn < -0.20) { stockReturn = -0.05 - Math.random() * 0.10; consecutiveNeg = 0; }
       if (stockReturn < -0.15) consecutiveNeg++; else consecutiveNeg = 0;
-      stockReturn = Math.max(-0.50, stockReturn);
+      stockReturn = Math.max(-0.50, Math.min(0.60, stockReturn));
 
       let bondReturn = Math.exp(bondDrift + bondParams.stdDev * zBond) - 1;
       bondReturn += (currentInflation - inflationParams.mean) * bondParams.inflationSensitivity;
+      bondReturn = Math.max(-0.20, Math.min(0.30, bondReturn));
 
       returns.push(stockReturn * allocation.stocks + bondReturn * (1 - allocation.stocks));
     }
