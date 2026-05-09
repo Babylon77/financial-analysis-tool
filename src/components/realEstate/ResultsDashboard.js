@@ -28,9 +28,9 @@ export default function ResultsDashboard({ analysis, recommendedStrategy, strate
             <p className="text-sm opacity-80">Based on your priorities</p>
           </div>
           <div className="text-center">
-            <h3 className="text-xl font-semibold mb-1">Highest ROI</h3>
+            <h3 className="text-xl font-semibold mb-1">Highest Annualized ROI</h3>
             <p className="text-3xl font-bold">{formatPercent(Math.max(analysis.annualizedROI, analysis.ltrTotalROIAnnualized, analysis.strTotalROIAnnualized))}%</p>
-            <p className="text-sm opacity-80">Total Annual Return</p>
+            <p className="text-sm opacity-80">Best strategy, annualized</p>
           </div>
           <div className="text-center">
             <h3 className="text-xl font-semibold mb-1">5-Year Profit</h3>
@@ -99,7 +99,7 @@ export default function ResultsDashboard({ analysis, recommendedStrategy, strate
           <div className="space-y-3">
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-txt-muted">ROI</span>
+                <span className="text-txt-muted">Flip ROI (holding period)</span>
                 <span className="font-medium">{formatPercent(analysis.roi)}%</span>
               </div>
               <div className="w-full bg-surface-elevated rounded-full h-2">

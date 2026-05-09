@@ -23,8 +23,7 @@ const MonteCarloResults = ({ simulationData }) => {
     drawdowns
   } = simulationData;
 
-  // Calculate the impact of inflation
-  const inflationImpact = ((nominalFinalValues.median - finalValues.median) / nominalFinalValues.median) * 100;
+  const inflationImpact = Math.max(0, ((nominalFinalValues.median - finalValues.median) / nominalFinalValues.median) * 100);
 
   return (
     <div className="bg-surface-primary p-6 rounded-lg border border-surface-border">

@@ -343,9 +343,9 @@ export const runMonteCarloSimulation = ({
     bestPath: p99Case.realYearlyValues,
     optimisticPath: p90Case.realYearlyValues,
     
-    nominalMedianPath: medianCase.nominalYearlyValues,
-    nominalWorstPath: p1Case.nominalYearlyValues,
-    nominalBestPath: p99Case.nominalYearlyValues,
+    nominalMedianPath: medianCase.realYearlyValues.map((v, i) => v * Math.pow(1 + (inflationMean ?? ASSET_CLASS_PARAMS.inflation.mean), i)),
+    nominalWorstPath: p1Case.realYearlyValues.map((v, i) => v * Math.pow(1 + (inflationMean ?? ASSET_CLASS_PARAMS.inflation.mean), i)),
+    nominalBestPath: p99Case.realYearlyValues.map((v, i) => v * Math.pow(1 + (inflationMean ?? ASSET_CLASS_PARAMS.inflation.mean), i)),
     
     worstDrawdownPath: drawdownSorted[0].realYearlyValues,
     allPaths,
@@ -372,10 +372,10 @@ export const runMonteCarloSimulation = ({
     },
     
     nominalFinalValues: {
-      median: medianCase.finalNominalValue,
-      worst: p1Case.finalNominalValue,
-      optimistic: p90Case.finalNominalValue,
-      best: p99Case.finalNominalValue,
+      median: medianCase.finalRealValue * Math.pow(1 + (inflationMean ?? ASSET_CLASS_PARAMS.inflation.mean), years),
+      worst: p1Case.finalRealValue * Math.pow(1 + (inflationMean ?? ASSET_CLASS_PARAMS.inflation.mean), years),
+      optimistic: p90Case.finalRealValue * Math.pow(1 + (inflationMean ?? ASSET_CLASS_PARAMS.inflation.mean), years),
+      best: p99Case.finalRealValue * Math.pow(1 + (inflationMean ?? ASSET_CLASS_PARAMS.inflation.mean), years),
     },
     
     drawdowns: {

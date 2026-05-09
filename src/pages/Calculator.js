@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MoneyInput from '../components/MoneyInput';
 import PropertyComparison from '../components/PropertyComparison';
@@ -58,22 +58,37 @@ function Calculator() {
     const condition = formData.houseCondition || 'fair';
     const location = formData.location || 'TX';
     const diyLevel = formData.diyLevel || 'minimal';
-    
+
     const baseCost = RENOVATION_COST_ESTIMATES[condition].base;
     const regionalMultiplier = REGIONAL_MULTIPLIERS[location] || 1.0;
     const diyFactor = DIY_FACTORS[diyLevel] || 1.0;
-    
+
     const estimatedCost = Math.round(size * baseCost * regionalMultiplier * diyFactor / 100) * 100;
-    
+
     setFormData(prev => ({
       ...prev,
       renovationCost: estimatedCost.toString(),
       renovationMethod: 'estimate',
       useBreakdown: false
     }));
-    
+
     setOpenEstimator(false);
   };
+
+  useEffect(() => {
+    if (renovationTab !== 0) return;
+    const size = parseFloat(formData.houseSize) || 1500;
+    const condition = formData.houseCondition || 'fair';
+    const location = formData.location || 'TX';
+    const diyLevel = formData.diyLevel || 'minimal';
+    const baseCost = RENOVATION_COST_ESTIMATES[condition]?.base;
+    if (!baseCost) return;
+    const estimatedCost = Math.round(size * baseCost * (REGIONAL_MULTIPLIERS[location] || 1.0) * (DIY_FACTORS[diyLevel] || 1.0) / 100) * 100;
+    setFormData(prev => {
+      if (prev.renovationCost === estimatedCost.toString()) return prev;
+      return { ...prev, renovationCost: estimatedCost.toString(), renovationMethod: 'estimate', useBreakdown: false };
+    });
+  }, [renovationTab, formData.houseSize, formData.houseCondition, formData.location, formData.diyLevel]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
