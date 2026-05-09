@@ -208,6 +208,18 @@ function financialPlanReducer(state, action) {
       };
     }
 
+    case 'RESET':
+      return {
+        profile: { ...DEFAULT_PROFILE },
+        simulationConfig: { ...DEFAULT_CONFIG },
+        simulationResults: null,
+        drawdownPhases: [...DEFAULT_DRAWDOWN_PHASES],
+        heatmapData: [],
+        selectedHeatmapAge: 62,
+        monteCarloScenario: 'median',
+        spendDownAnalysis: null,
+      };
+
     default:
       return state;
   }
@@ -232,7 +244,10 @@ export function FinancialPlanProvider({ children }) {
   }, [isAuthenticated, loadFinancialData]);
 
   useEffect(() => {
-    if (!isAuthenticated) hasLoadedFromCloud.current = false;
+    if (!isAuthenticated) {
+      hasLoadedFromCloud.current = false;
+      dispatch({ type: 'RESET' });
+    }
   }, [isAuthenticated]);
 
   useEffect(() => {

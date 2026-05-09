@@ -86,7 +86,16 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     if (!supabase) return;
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ensure cleanup runs even if signOut fails
+    }
+    sessionStorage.clear();
+    // Clear Supabase auth tokens from localStorage in case signOut failed
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('sb-')) localStorage.removeItem(key);
+    });
     setUser(null);
     setSession(null);
     sessionRef.current = null;
