@@ -1,81 +1,85 @@
 // ============================================================================
-// US Tax Constants — 2025 Tax Year
+// US Tax Constants — 2026 Tax Year
+// Sources: IRS Rev. Proc. 2025-32 (brackets, std deduction, cap gains, estate/
+// gift), IRS Notice on 2026 retirement limits, SSA 2026 fact sheet, CMS 2026
+// IRMAA. NIIT and Social Security taxation thresholds are statutory and NOT
+// inflation-indexed.
 // ============================================================================
 
-export const TAX_CONSTANTS_YEAR = '2025';
+export const TAX_CONSTANTS_YEAR = '2026';
 
 // ============================================================================
-// Federal Income Tax Brackets
+// Federal Income Tax Brackets (2026)
 // ============================================================================
 
 export const FEDERAL_TAX_BRACKETS = {
   single: [
-    { min: 0, max: 11600, rate: 0.10 },
-    { min: 11600, max: 47150, rate: 0.12 },
-    { min: 47150, max: 100525, rate: 0.22 },
-    { min: 100525, max: 191950, rate: 0.24 },
-    { min: 191950, max: 243725, rate: 0.32 },
-    { min: 243725, max: 609350, rate: 0.35 },
-    { min: 609350, max: Infinity, rate: 0.37 },
+    { min: 0, max: 12400, rate: 0.10 },
+    { min: 12400, max: 50400, rate: 0.12 },
+    { min: 50400, max: 105700, rate: 0.22 },
+    { min: 105700, max: 201775, rate: 0.24 },
+    { min: 201775, max: 256225, rate: 0.32 },
+    { min: 256225, max: 640600, rate: 0.35 },
+    { min: 640600, max: Infinity, rate: 0.37 },
   ],
   married_filing_jointly: [
-    { min: 0, max: 23200, rate: 0.10 },
-    { min: 23200, max: 94300, rate: 0.12 },
-    { min: 94300, max: 201050, rate: 0.22 },
-    { min: 201050, max: 383900, rate: 0.24 },
-    { min: 383900, max: 487450, rate: 0.32 },
-    { min: 487450, max: 731200, rate: 0.35 },
-    { min: 731200, max: Infinity, rate: 0.37 },
+    { min: 0, max: 24800, rate: 0.10 },
+    { min: 24800, max: 100800, rate: 0.12 },
+    { min: 100800, max: 211400, rate: 0.22 },
+    { min: 211400, max: 403550, rate: 0.24 },
+    { min: 403550, max: 512450, rate: 0.32 },
+    { min: 512450, max: 768700, rate: 0.35 },
+    { min: 768700, max: Infinity, rate: 0.37 },
   ],
   married_filing_separately: [
-    { min: 0, max: 11600, rate: 0.10 },
-    { min: 11600, max: 47150, rate: 0.12 },
-    { min: 47150, max: 100525, rate: 0.22 },
-    { min: 100525, max: 191950, rate: 0.24 },
-    { min: 191950, max: 243725, rate: 0.32 },
-    { min: 243725, max: 365600, rate: 0.35 },
-    { min: 365600, max: Infinity, rate: 0.37 },
+    { min: 0, max: 12400, rate: 0.10 },
+    { min: 12400, max: 50400, rate: 0.12 },
+    { min: 50400, max: 105700, rate: 0.22 },
+    { min: 105700, max: 201775, rate: 0.24 },
+    { min: 201775, max: 256225, rate: 0.32 },
+    { min: 256225, max: 384350, rate: 0.35 },
+    { min: 384350, max: Infinity, rate: 0.37 },
   ],
   head_of_household: [
-    { min: 0, max: 16550, rate: 0.10 },
-    { min: 16550, max: 63100, rate: 0.12 },
-    { min: 63100, max: 100500, rate: 0.22 },
-    { min: 100500, max: 191950, rate: 0.24 },
-    { min: 191950, max: 243700, rate: 0.32 },
-    { min: 243700, max: 609350, rate: 0.35 },
-    { min: 609350, max: Infinity, rate: 0.37 },
+    { min: 0, max: 17700, rate: 0.10 },
+    { min: 17700, max: 67450, rate: 0.12 },
+    { min: 67450, max: 105700, rate: 0.22 },
+    { min: 105700, max: 201775, rate: 0.24 },
+    { min: 201775, max: 256200, rate: 0.32 },
+    { min: 256200, max: 640600, rate: 0.35 },
+    { min: 640600, max: Infinity, rate: 0.37 },
   ],
 };
 
 // ============================================================================
-// Long-Term Capital Gains Brackets
+// Long-Term Capital Gains Brackets (2026)
 // ============================================================================
 
 export const CAPITAL_GAINS_BRACKETS = {
   single: [
-    { min: 0, max: 47025, rate: 0.00 },
-    { min: 47025, max: 518900, rate: 0.15 },
-    { min: 518900, max: Infinity, rate: 0.20 },
+    { min: 0, max: 49450, rate: 0.00 },
+    { min: 49450, max: 545500, rate: 0.15 },
+    { min: 545500, max: Infinity, rate: 0.20 },
   ],
   married_filing_jointly: [
-    { min: 0, max: 94050, rate: 0.00 },
-    { min: 94050, max: 583750, rate: 0.15 },
-    { min: 583750, max: Infinity, rate: 0.20 },
+    { min: 0, max: 98900, rate: 0.00 },
+    { min: 98900, max: 613700, rate: 0.15 },
+    { min: 613700, max: Infinity, rate: 0.20 },
   ],
   married_filing_separately: [
-    { min: 0, max: 47025, rate: 0.00 },
-    { min: 47025, max: 291850, rate: 0.15 },
-    { min: 291850, max: Infinity, rate: 0.20 },
+    { min: 0, max: 49450, rate: 0.00 },
+    { min: 49450, max: 306850, rate: 0.15 },
+    { min: 306850, max: Infinity, rate: 0.20 },
   ],
   head_of_household: [
-    { min: 0, max: 63000, rate: 0.00 },
-    { min: 63000, max: 551350, rate: 0.15 },
-    { min: 551350, max: Infinity, rate: 0.20 },
+    { min: 0, max: 66200, rate: 0.00 },
+    { min: 66200, max: 579600, rate: 0.15 },
+    { min: 579600, max: Infinity, rate: 0.20 },
   ],
 };
 
 // ============================================================================
-// Net Investment Income Tax (3.8%)
+// Net Investment Income Tax (3.8%) — statutory, not inflation-indexed
 // ============================================================================
 
 export const NIIT_THRESHOLD = {
@@ -87,17 +91,19 @@ export const NIIT_THRESHOLD = {
 };
 
 // ============================================================================
-// Social Security Tax Parameters
+// Social Security Tax Parameters (2026)
 // ============================================================================
 
 export const SOCIAL_SECURITY_TAX = {
-  taxableWageBase: 168600,
+  taxableWageBase: 184500,
   employeeRate: 0.062,
   employerRate: 0.062,
   selfEmployedRate: 0.124,
 
   taxablePercentages: [0, 0.50, 0.85],
 
+  // Provisional-income thresholds are statutory (set in 1983/1993) and are NOT
+  // inflation-indexed.
   provisionalIncomeThresholds: {
     single: [
       { min: 0, max: 25000, taxablePercent: 0 },
@@ -109,6 +115,8 @@ export const SOCIAL_SECURITY_TAX = {
       { min: 32000, max: 44000, taxablePercent: 0.50 },
       { min: 44000, max: Infinity, taxablePercent: 0.85 },
     ],
+    // MFS taxpayers who lived with their spouse at any time during the year have
+    // a $0 threshold — up to 85% of benefits are taxable from the first dollar.
     married_filing_separately: [
       { min: 0, max: 0, taxablePercent: 0 },
       { min: 0, max: Infinity, taxablePercent: 0.85 },
@@ -121,90 +129,99 @@ export const SOCIAL_SECURITY_TAX = {
   },
 
   maxBenefit: {
-    age62: 2710,
-    fra: 3822,
-    age70: 4873,
+    age62: 2969,
+    fra: 4207,
+    age70: 5181,
   },
 
-  costOfLivingAdjustment: 0.032,
+  // Retirement Earnings Test exempt amounts (2026)
+  earningsTest: {
+    underFRA: 24480,
+    yearOfFRA: 65160,
+  },
+
+  costOfLivingAdjustment: 0.028,
 };
 
 // ============================================================================
-// Medicare IRMAA (Income-Related Monthly Adjustment Amount)
+// Medicare IRMAA (Income-Related Monthly Adjustment Amount) — 2026
+// Surcharges are the monthly add-on over the standard premium; income tiers use
+// MAGI from 2 years prior (2024 for 2026).
 // ============================================================================
 
 export const MEDICARE_IRMAA = {
-  standardPartBPremium: 174.70,
+  standardPartBPremium: 202.90,
 
   single: [
-    { min: 0, max: 103000, surcharge: 0 },
-    { min: 103000, max: 129000, surcharge: 69.90 },
-    { min: 129000, max: 161000, surcharge: 174.70 },
-    { min: 161000, max: 193000, surcharge: 279.50 },
-    { min: 193000, max: 500000, surcharge: 384.30 },
-    { min: 500000, max: Infinity, surcharge: 419.30 },
+    { min: 0, max: 109000, surcharge: 0 },
+    { min: 109000, max: 137000, surcharge: 81.16 },
+    { min: 137000, max: 171000, surcharge: 202.90 },
+    { min: 171000, max: 205000, surcharge: 324.64 },
+    { min: 205000, max: 500000, surcharge: 446.38 },
+    { min: 500000, max: Infinity, surcharge: 486.96 },
   ],
   married_filing_jointly: [
-    { min: 0, max: 206000, surcharge: 0 },
-    { min: 206000, max: 258000, surcharge: 69.90 },
-    { min: 258000, max: 322000, surcharge: 174.70 },
-    { min: 322000, max: 386000, surcharge: 279.50 },
-    { min: 386000, max: 750000, surcharge: 384.30 },
-    { min: 750000, max: Infinity, surcharge: 419.30 },
+    { min: 0, max: 218000, surcharge: 0 },
+    { min: 218000, max: 274000, surcharge: 81.16 },
+    { min: 274000, max: 342000, surcharge: 202.90 },
+    { min: 342000, max: 410000, surcharge: 324.64 },
+    { min: 410000, max: 750000, surcharge: 446.38 },
+    { min: 750000, max: Infinity, surcharge: 486.96 },
   ],
   married_filing_separately: [
-    { min: 0, max: 103000, surcharge: 0 },
-    { min: 103000, max: 397000, surcharge: 384.30 },
-    { min: 397000, max: Infinity, surcharge: 419.30 },
+    { min: 0, max: 109000, surcharge: 0 },
+    { min: 109000, max: 391000, surcharge: 446.38 },
+    { min: 391000, max: Infinity, surcharge: 486.96 },
   ],
   head_of_household: [
-    { min: 0, max: 103000, surcharge: 0 },
-    { min: 103000, max: 129000, surcharge: 69.90 },
-    { min: 129000, max: 161000, surcharge: 174.70 },
-    { min: 161000, max: 193000, surcharge: 279.50 },
-    { min: 193000, max: 500000, surcharge: 384.30 },
-    { min: 500000, max: Infinity, surcharge: 419.30 },
+    { min: 0, max: 109000, surcharge: 0 },
+    { min: 109000, max: 137000, surcharge: 81.16 },
+    { min: 137000, max: 171000, surcharge: 202.90 },
+    { min: 171000, max: 205000, surcharge: 324.64 },
+    { min: 205000, max: 500000, surcharge: 446.38 },
+    { min: 500000, max: Infinity, surcharge: 486.96 },
   ],
 };
 
 // ============================================================================
-// Medicare IRMAA Part D Surcharges (same income tiers as Part B)
+// Medicare IRMAA Part D Surcharges (2026, same income tiers as Part B)
 // ============================================================================
 
 export const MEDICARE_IRMAA_PART_D = {
   single: [
-    { min: 0, max: 103000, surcharge: 0 },
-    { min: 103000, max: 129000, surcharge: 12.90 },
-    { min: 129000, max: 161000, surcharge: 33.30 },
-    { min: 161000, max: 193000, surcharge: 53.80 },
-    { min: 193000, max: 500000, surcharge: 74.20 },
-    { min: 500000, max: Infinity, surcharge: 81.00 },
+    { min: 0, max: 109000, surcharge: 0 },
+    { min: 109000, max: 137000, surcharge: 14.50 },
+    { min: 137000, max: 171000, surcharge: 37.50 },
+    { min: 171000, max: 205000, surcharge: 60.40 },
+    { min: 205000, max: 500000, surcharge: 83.30 },
+    { min: 500000, max: Infinity, surcharge: 91.00 },
   ],
   married_filing_jointly: [
-    { min: 0, max: 206000, surcharge: 0 },
-    { min: 206000, max: 258000, surcharge: 12.90 },
-    { min: 258000, max: 322000, surcharge: 33.30 },
-    { min: 322000, max: 386000, surcharge: 53.80 },
-    { min: 386000, max: 750000, surcharge: 74.20 },
-    { min: 750000, max: Infinity, surcharge: 81.00 },
+    { min: 0, max: 218000, surcharge: 0 },
+    { min: 218000, max: 274000, surcharge: 14.50 },
+    { min: 274000, max: 342000, surcharge: 37.50 },
+    { min: 342000, max: 410000, surcharge: 60.40 },
+    { min: 410000, max: 750000, surcharge: 83.30 },
+    { min: 750000, max: Infinity, surcharge: 91.00 },
   ],
   married_filing_separately: [
-    { min: 0, max: 103000, surcharge: 0 },
-    { min: 103000, max: 397000, surcharge: 74.20 },
-    { min: 397000, max: Infinity, surcharge: 81.00 },
+    { min: 0, max: 109000, surcharge: 0 },
+    { min: 109000, max: 391000, surcharge: 83.30 },
+    { min: 391000, max: Infinity, surcharge: 91.00 },
   ],
   head_of_household: [
-    { min: 0, max: 103000, surcharge: 0 },
-    { min: 103000, max: 129000, surcharge: 12.90 },
-    { min: 129000, max: 161000, surcharge: 33.30 },
-    { min: 161000, max: 193000, surcharge: 53.80 },
-    { min: 193000, max: 500000, surcharge: 74.20 },
-    { min: 500000, max: Infinity, surcharge: 81.00 },
+    { min: 0, max: 109000, surcharge: 0 },
+    { min: 109000, max: 137000, surcharge: 14.50 },
+    { min: 137000, max: 171000, surcharge: 37.50 },
+    { min: 171000, max: 205000, surcharge: 60.40 },
+    { min: 205000, max: 500000, surcharge: 83.30 },
+    { min: 500000, max: Infinity, surcharge: 91.00 },
   ],
 };
 
 // ============================================================================
 // Required Minimum Distribution (RMD) — IRS Uniform Lifetime Table
+// (Table values are not inflation-adjusted; current post-2022 table.)
 // ============================================================================
 
 export const RMD_TABLE = {
@@ -314,64 +331,67 @@ export const JOINT_LIFE_TABLE = {
 };
 
 // ============================================================================
-// Contribution Limits (2025)
+// Contribution Limits (2026)
 // ============================================================================
 
 export const CONTRIBUTION_LIMITS = {
-  traditional401k: 23500,
-  roth401k: 23500,
-  traditionalIRA: 7000,
-  rothIRA: 7000,
+  traditional401k: 24500,
+  roth401k: 24500,
+  traditionalIRA: 7500,
+  rothIRA: 7500,
 
   hsa: {
-    single: 4300,
-    family: 8550,
+    single: 4400,
+    family: 8750,
   },
 
-  catchUp401k: 7500,
-  catchUpIRA: 1000,
+  catchUp401k: 8000,
+  catchUpIRA: 1100,
   catchUp401kSuperAge60to63: 11250,
 
   rothIRAIncomePhaseout: {
-    single: { start: 146000, end: 161000 },
-    married_filing_jointly: { start: 230000, end: 240000 },
+    single: { start: 153000, end: 168000 },
+    married_filing_jointly: { start: 242000, end: 252000 },
     married_filing_separately: { start: 0, end: 10000 },
-    head_of_household: { start: 146000, end: 161000 },
+    head_of_household: { start: 153000, end: 168000 },
   },
 
   traditionalIRADeductionPhaseout: {
-    single: { start: 77000, end: 87000 },
-    married_filing_jointly: { start: 123000, end: 143000 },
+    single: { start: 81000, end: 91000 },
+    married_filing_jointly: { start: 129000, end: 149000 },
     married_filing_separately: { start: 0, end: 10000 },
-    head_of_household: { start: 77000, end: 87000 },
+    head_of_household: { start: 81000, end: 91000 },
   },
 
-  annualGiftExclusion: 18000,
+  annualGiftExclusion: 19000,
 };
 
 // ============================================================================
-// Estate Tax
+// Estate Tax (2026)
 // ============================================================================
 
 export const ESTATE_TAX = {
-  exemption: 13610000,
+  exemption: 15000000,
   topRate: 0.40,
   portabilityAllowed: true,
 };
 
 // ============================================================================
-// Standard Deduction
+// Standard Deduction (2026)
+// `additional` is the extra deduction per qualifying age-65+ taxpayer.
 // ============================================================================
 
 export const STANDARD_DEDUCTION = {
-  single: { amount: 15000, additional: 2000 },
-  married_filing_jointly: { amount: 30000, additional: 1600 },
-  married_filing_separately: { amount: 15000, additional: 1600 },
-  head_of_household: { amount: 22500, additional: 2000 },
+  single: { amount: 16100, additional: 2050 },
+  married_filing_jointly: { amount: 32200, additional: 1650 },
+  married_filing_separately: { amount: 16100, additional: 1650 },
+  head_of_household: { amount: 24150, additional: 2050 },
 };
 
 // ============================================================================
-// State Income Tax — Top Marginal Rates (2024)
+// State Income Tax — Approximate Top Marginal Rates
+// NOTE: These are top marginal rates applied as a flat rate; a simplification
+// that overstates tax for graduated-rate states at lower incomes.
 // States with no income tax are listed as 0.
 // ============================================================================
 

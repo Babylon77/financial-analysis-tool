@@ -172,16 +172,21 @@ export function calculateSocialSecurityTax({
   const brackets = SOCIAL_SECURITY_TAX.provisionalIncomeThresholds[filingStatus]
     || SOCIAL_SECURITY_TAX.provisionalIncomeThresholds.married_filing_jointly;
 
-  // Extract lower threshold (from the 50% bracket) and upper threshold (from the 85% bracket)
+  // Lower threshold = start of the first taxable (>0%) bracket; upper threshold
+  // = start of the 85% bracket. Derived this way so filing statuses without a
+  // distinct 50% bracket (e.g. married-filing-separately, where both thresholds
+  // are $0 and benefits are taxable from the first dollar) are handled correctly.
   let lowerThreshold = Infinity;
   let upperThreshold = Infinity;
   for (const bracket of brackets) {
-    if (bracket.taxablePercent === 0.50) {
-      lowerThreshold = bracket.min;
-    } else if (bracket.taxablePercent === 0.85) {
+    if (bracket.taxablePercent === 0.85 && bracket.min < upperThreshold) {
       upperThreshold = bracket.min;
     }
+    if (bracket.taxablePercent > 0 && bracket.min < lowerThreshold) {
+      lowerThreshold = bracket.min;
+    }
   }
+  if (!Number.isFinite(lowerThreshold)) lowerThreshold = upperThreshold;
 
   // IRS formula for taxable Social Security benefits
   let taxableAmount = 0;

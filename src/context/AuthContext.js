@@ -42,12 +42,26 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      sessionRef.current = s;
-      setUser(mapUser(s?.user ?? null));
+    // Safety net: never let a hung/failed getSession() leave the app stuck on
+    // the loading state, which would hide the entire auth UI (Sign In + avatar).
+    let settled = false;
+    const finishLoading = () => {
+      if (settled) return;
+      settled = true;
       setLoading(false);
-    });
+    };
+    const timeoutId = setTimeout(finishLoading, 4000);
+
+    supabase.auth.getSession()
+      .then(({ data: { session: s } }) => {
+        setSession(s);
+        sessionRef.current = s;
+        setUser(mapUser(s?.user ?? null));
+      })
+      .catch((err) => {
+        console.warn('Supabase getSession failed:', err?.message || err);
+      })
+      .finally(finishLoading);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
@@ -55,7 +69,10 @@ export function AuthProvider({ children }) {
       setUser(mapUser(s?.user ?? null));
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = useCallback(async (email, password) => {

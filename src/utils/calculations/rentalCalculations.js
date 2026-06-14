@@ -8,7 +8,11 @@ export function calculateRentalROI(formData) {
   const monthlyRent = parseFloat(formData.expectedMonthlyRent) || 0;
   const propertyTaxRate = parseFloat(formData.propertyTax) || 1.2;
   const insuranceRate = parseFloat(formData.insurance) || 0.5;
-  const maintenanceRate = parseFloat(formData.maintenance) || 0.5;
+  // Default aligned with the LTR breakdown (1% of value). Number.isFinite guard
+  // so an explicit 0 from the user isn't overridden.
+  const maintenanceRate = Number.isFinite(parseFloat(formData.maintenance))
+    ? parseFloat(formData.maintenance)
+    : EXPENSE_RATIOS.maintenance * 100;
   const propertyManagementPercent = parseFloat(formData.propertyManagement) || 8;
   const vacancyRate = parseFloat(formData.vacancyRate) || 8;
   const closingCostPercent = parseFloat(formData.closingCosts) || 3;
@@ -24,7 +28,9 @@ export function calculateRentalROI(formData) {
       (Math.pow(1 + monthlyInterestRate, numberOfPayments) - 1)
     : loanAmount > 0 ? loanAmount / numberOfPayments : 0;
 
-  const annualAppreciationRate = parseFloat(formData.annualAppreciation) / 100 || 0.03;
+  // Nullish-style guard: an explicit 0% appreciation must not fall through to 3%.
+  const rawAppreciation = parseFloat(formData.annualAppreciation);
+  const annualAppreciationRate = Number.isFinite(rawAppreciation) ? rawAppreciation / 100 : 0.03;
   const rentIncreaseRate = 0.02;
   const yearsToHold = 5;
 
@@ -49,9 +55,14 @@ export function calculateRentalROI(formData) {
     const annualInsurance = purchasePrice * (insuranceRate / 100) * Math.pow(1 + inflationRate, year);
     const annualMaintenance = purchasePrice * (maintenanceRate / 100) * Math.pow(1 + inflationRate, year);
     const annualPropertyManagement = effectiveAnnualRent * propertyManagementPercent / 100;
+    // Capex and utilities are charged in the LTR expense breakdown, so include
+    // them here too — otherwise headline ROI overstates returns vs the breakdown.
+    const annualUtilities = purchasePrice * EXPENSE_RATIOS.utilities * Math.pow(1 + inflationRate, year);
+    const annualCapex = adjustedAnnualRent * EXPENSE_RATIOS.capex;
 
     const yearCashFlow = effectiveAnnualRent - annualPropertyTax - annualInsurance -
-      annualMaintenance - annualPropertyManagement - (monthlyPayment * 12);
+      annualMaintenance - annualPropertyManagement - annualUtilities - annualCapex -
+      (monthlyPayment * 12);
 
     totalCashFlow += yearCashFlow;
   }

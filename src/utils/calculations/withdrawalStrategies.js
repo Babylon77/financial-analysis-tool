@@ -28,7 +28,7 @@ export function getSpendingMultiplier(age, curveType = 'flat') {
   return 0.90 + 0.015 * (age - 80); // healthcare costs accelerate
 }
 
-export function fixedDollarWithdrawal({ portfolioValue, annualWithdrawal, inflationRate = 0.03, years, returnSequence, spendingCurve, startAge, incomeByYear }) {
+export function fixedDollarWithdrawal({ portfolioValue, annualWithdrawal, inflationRate = 0, years, returnSequence, spendingCurve, startAge, incomeByYear }) {
   const results = [];
   let balance = portfolioValue;
 
@@ -101,7 +101,7 @@ export function percentOfPortfolio({ portfolioValue, withdrawalRate = 0.04, year
   return results;
 }
 
-export function guytonKlinger({ portfolioValue, initialWithdrawal, inflationRate = 0.03, years, guardrailWidth = 0.20, returnSequence, spendingCurve, startAge, incomeByYear }) {
+export function guytonKlinger({ portfolioValue, initialWithdrawal, inflationRate = 0, years, guardrailWidth = 0.20, returnSequence, spendingCurve, startAge, incomeByYear }) {
   const results = [];
   let balance = portfolioValue;
   let withdrawal = initialWithdrawal;
@@ -183,7 +183,7 @@ const DEFAULT_BUCKETS = [
   { name: 'Growth', years: Infinity, allocation: 0, expectedReturn: 0.08 },
 ];
 
-export function bucketStrategy({ portfolioValue, annualWithdrawal, inflationRate = 0.03, years, buckets, returnSequence, spendingCurve, startAge, incomeByYear }) {
+export function bucketStrategy({ portfolioValue, annualWithdrawal, inflationRate = 0, years, buckets, returnSequence, spendingCurve, startAge, incomeByYear }) {
   const b = (buckets || DEFAULT_BUCKETS).map(bucket => ({ ...bucket }));
 
   // Allocate portfolio into buckets based on years of withdrawals needed

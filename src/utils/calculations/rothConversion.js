@@ -220,30 +220,34 @@ export function calculateProRata({
 
 export function calculateConversionBreakEven({
   conversionAmount,
-  taxRate,
-  futureWithdrawalRate,
+  taxRate,                          // marginal rate paid now on the conversion
+  futureTaxRate,                    // expected marginal rate at future withdrawal
   realReturnRate = 0.06,
+  sideAccountGainsTaxRate = 0.15,   // cap-gains drag on the taxable side account
 }) {
-  if (taxRate >= futureWithdrawalRate) return { breakEvenYears: Infinity, neverBreaksEven: true };
+  // The economically meaningful comparison pays the conversion tax from a
+  // TAXABLE side account, so the full converted balance keeps growing tax-free:
+  //   Convert    -> conversionAmount grows tax-free (withdraw at 0%).
+  //   Don't       -> conversionAmount stays traditional (taxed at futureTaxRate on
+  //                  withdrawal), and the tax you would have paid now stays
+  //                  invested in a taxable account growing at an after-tax rate.
+  // Because the side account grows more slowly (gains are taxed) than the Roth's
+  // tax-free compounding, the Roth eventually wins whenever futureTaxRate > 0 —
+  // and the crossover year lengthens as the current rate exceeds the future rate.
+  const C = conversionAmount;
+  if (!(C > 0) || !(futureTaxRate > 0)) {
+    return { breakEvenYears: Infinity, neverBreaksEven: true };
+  }
 
-  const taxPaidNow = conversionAmount * taxRate;
-  const taxSavedPerYear = conversionAmount * futureWithdrawalRate - conversionAmount * taxRate;
+  const taxPaidNow = C * taxRate;
+  const sideGrowthRate = realReturnRate * (1 - sideAccountGainsTaxRate);
 
-  if (taxSavedPerYear <= 0) return { breakEvenYears: Infinity, neverBreaksEven: true };
-
-  // After-tax growth comparison: Roth grows fully tax-free vs traditional grows tax-deferred
-  // but is taxed on withdrawal. Find when Roth advantage covers upfront tax cost.
-  const afterTaxRoth = conversionAmount - taxPaidNow;
-  let rothValue = afterTaxRoth;
-  let tradValue = conversionAmount;
-  let years = 0;
-
-  while (years < 50) {
-    years++;
-    rothValue *= (1 + realReturnRate);
-    tradValue *= (1 + realReturnRate);
-    const tradAfterTax = tradValue * (1 - futureWithdrawalRate);
-    if (rothValue >= tradAfterTax) {
+  for (let years = 1; years <= 50; years++) {
+    const growth = Math.pow(1 + realReturnRate, years);
+    const rothAfterTax = C * growth; // tax-free
+    const traditionalAfterTax = C * growth * (1 - futureTaxRate)
+      + taxPaidNow * Math.pow(1 + sideGrowthRate, years);
+    if (rothAfterTax >= traditionalAfterTax) {
       return { breakEvenYears: years, neverBreaksEven: false };
     }
   }

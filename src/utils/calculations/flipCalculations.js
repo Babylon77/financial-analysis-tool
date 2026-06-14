@@ -26,8 +26,12 @@ export function calculateFlipROI(formData) {
   const totalInvestment = downPayment + renovationCost + closingCosts + totalHoldingCosts;
   const netProfit = expectedSellingPrice - sellingCosts - purchasePrice - renovationCost - closingCosts - totalHoldingCosts;
   const roi = totalInvestment > 0 ? (netProfit / totalInvestment) * 100 : 0;
+  // Annualizing very short holds (1-2 months) compounds the period return ~6-12x
+  // and produces absurd figures (e.g. a 15% 1-month flip -> 435%). Floor the
+  // annualization horizon at 3 months so ultra-short flips aren't wildly inflated.
+  const annualizationMonths = Math.max(holdingPeriod, 3);
   const annualizedROI = holdingPeriod > 0 && (1 + roi / 100) > 0
-    ? (Math.pow(1 + roi / 100, 12 / holdingPeriod) - 1) * 100
+    ? (Math.pow(1 + roi / 100, 12 / annualizationMonths) - 1) * 100
     : holdingPeriod > 0 ? -100 : 0;
 
   return annualizedROI;

@@ -38,10 +38,11 @@ export const RISK_PROFILES = {
   aggressive:   { stocks: 1.00, bonds: 0.00, meanReturn: 7.0,  worstYear: -50, bestYear: 55,  maxDrawdown: -60 },
 };
 
-// Historical validation benchmarks, kept for reference
+// Historical validation benchmarks, kept for reference only (no longer used to
+// clamp simulated paths — see the note in runSimulationPath).
 export const HISTORICAL_VALIDATION = {
-  minLongTermPortfolioReturn: -0.01, // Prevent unrealistic long-term negative real returns
-  maxDrawdown: -0.60, // Cap drawdowns at a level similar to the worst historical crashes
+  minLongTermPortfolioReturn: -0.01,
+  maxDrawdown: -0.60,
 };
 
 /**
@@ -221,22 +222,11 @@ const runSimulationPath = ({
   // Nominal CAGR uses the input inflation mean, not this path's random inflation
   const nominalCAGR = (1 + realCAGR) * (1 + inflationParams.mean) - 1;
 
-  // Apply a guardrail for long-term returns to prevent unrealistic scenarios
-  if (years >= 20 && realCAGR < HISTORICAL_VALIDATION.minLongTermPortfolioReturn) {
-    const adjustmentFactor = Math.pow(1 + HISTORICAL_VALIDATION.minLongTermPortfolioReturn, years) / Math.pow(1 + realCAGR, years);
-    return {
-      finalNominalValue: finalNominalValue * adjustmentFactor,
-      finalRealValue: finalRealValue * adjustmentFactor,
-      nominalCAGR: nominalCAGR, // Keep original for analysis
-      realCAGR: HISTORICAL_VALIDATION.minLongTermPortfolioReturn,
-      wasAdjusted: true,
-      maxDrawdown, // Track actual path drawdown (not floored by historical validation)
-      nominalYearlyValues,
-      realYearlyValues,
-      yearlyReturns: yearlyReturns.map(r => r.portfolio),
-    };
-  }
-  
+  // NOTE: A previous long-horizon "guardrail" rescaled any path with realCAGR
+  // below minLongTermPortfolioReturn up to that floor. It censored the genuine
+  // left tail (the very paths a planner needs to see) and mathematically
+  // over-scaled contributed dollars. Removed so the downside is reported
+  // honestly; the per-year crash dampener already bounds pathological crashes.
   return {
     finalNominalValue,
     finalRealValue,
