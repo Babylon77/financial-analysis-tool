@@ -7,7 +7,7 @@ import MoneyInput from './MoneyInput';
 import { formatCurrency } from '../utils/formatters';
 import { useFinancialPlan, DEFAULT_CONFIG } from '../context/FinancialPlanContext';
 
-const MonteCarloSimulator = ({ initialInvestment = 4200000 }) => {
+const MonteCarloSimulator = ({ initialInvestment = 900000 }) => {
   const { state: planState, dispatch } = useFinancialPlan();
 
   const profileTotal = useMemo(() =>

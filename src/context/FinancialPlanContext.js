@@ -27,15 +27,15 @@ function loadJSON(key, fallback) {
 
 export const DEFAULT_PROFILE = {
   filingStatus: 'married_filing_jointly',
-  spouse1: { name: 'Spouse 1', currentAge: 45, retirementAge: 65 },
-  spouse2: { name: 'Spouse 2', currentAge: 46, retirementAge: 65 },
+  spouse1: { name: 'Spouse 1', currentAge: 38, retirementAge: 65 },
+  spouse2: { name: 'Spouse 2', currentAge: 37, retirementAge: 65 },
   lifeExpectancy: 90,
   dependents: 0,
   income: 120000,
   annualSpending: 80000,
   annualSavings: 50000,
   savingsGrowthRate: 3.0,
-  accounts: { trad401k: 0, roth401k: 0, tradIRA: 0, rothIRA: 0, hsa: 0, taxable: 0 },
+  accounts: { trad401k: 380000, roth401k: 90000, tradIRA: 120000, rothIRA: 90000, hsa: 30000, taxable: 190000 },
   matchPctOfSalary: 6,
   matchRate: 50,
   hsaEligible: true,
@@ -46,7 +46,7 @@ export const DEFAULT_PROFILE = {
 };
 
 export const DEFAULT_CONFIG = {
-  initialInvestment: 4200000,
+  initialInvestment: 900000,
   years: 30,
   annualContribution: 50000,
   savingsGrowthRate: 3.0,
@@ -56,9 +56,9 @@ export const DEFAULT_CONFIG = {
 };
 
 export const DEFAULT_DRAWDOWN_PHASES = [
-  { startAge: 65, endAge: 75, annualAmount: 200000, description: 'Early retirement phase' },
-  { startAge: 75, endAge: 85, annualAmount: 160000, description: 'Reduced expenses' },
-  { startAge: 85, endAge: 90, annualAmount: 100000, description: 'Late retirement + Social Security' },
+  { startAge: 65, endAge: 75, annualAmount: 80000, description: 'Early retirement phase' },
+  { startAge: 75, endAge: 85, annualAmount: 65000, description: 'Reduced expenses' },
+  { startAge: 85, endAge: 90, annualAmount: 50000, description: 'Late retirement + Social Security' },
 ];
 
 function buildInitialState() {

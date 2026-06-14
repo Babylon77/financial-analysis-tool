@@ -42,7 +42,7 @@ const Finance = () => {
 
         {/* Tab Content */}
         <div className="mt-6">
-          {activeTab === 'allocation' && <MonteCarloSimulator initialInvestment={4200000} />}
+          {activeTab === 'allocation' && <MonteCarloSimulator initialInvestment={900000} />}
           {activeTab === 'advanced' && <AdvancedRetirementPlanner setActiveTab={setActiveTab} />}
         </div>
       </div>
